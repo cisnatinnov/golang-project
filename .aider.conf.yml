@@ -1,0 +1,45 @@
+# Aider Configuration
+# https://aider.chat/docs/config/aider_conf.html
+
+## Model settings
+# model: gpt-4o
+
+## Auto-commit settings
+auto-commits: true
+dirty-commits: true
+commit-prompt: |
+  Write a concise conventional commit message for this Go backend change.
+  Use prefixes: feat, fix, refactor, test, chore, docs.
+  Format: <prefix>(<scope>): <short description>
+  Scopes: handler, repository, api, db, test, config
+
+## Git context
+attribute-author: true
+attribute-committer: false
+
+## Editor
+editor: code --wait
+
+## Linting (run after edits)
+lint-cmd: go vet ./...
+
+## Test runner
+test-cmd: make test
+
+## Files to always add to context
+read:
+  - AGENTS.md
+  - api.yml
+  - repository/interfaces.go
+  - repository/types.go
+
+## Files to never edit (auto-generated)
+auto-accept-fences: false
+
+## Map settings (helps aider understand structure)
+map-tokens: 4096
+map-refresh: auto
+
+## Output
+pretty: true
+stream: true
