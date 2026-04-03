@@ -8,8 +8,8 @@
 -- This is the estate table. Remove this table and replace with your own tables. 
 CREATE TABLE estate (
 	id UUID PRIMARY KEY,
-	length INT (100) NOT NULL,
-	width INT (100) NOT NULL,
+	length INT NOT NULL,
+	width INT NOT NULL,
 	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
@@ -17,9 +17,9 @@ CREATE TABLE estate (
 CREATE TABLE tree (
 	id UUID PRIMARY KEY,
 	estate_id UUID NOT NULL,
-	x INT (100) NOT NULL,
-	y INT (100) NOT NULL,
-	height INT (100) NOT NULL,
+	x INT NOT NULL,
+	y INT NOT NULL,
+	height INT NOT NULL,
 	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	FOREIGN KEY (estate_id) REFERENCES estate(id)

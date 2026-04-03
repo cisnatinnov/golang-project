@@ -1,0 +1,107 @@
+---
+description: Rules for the UserService Go Backend project
+globs: ["**/*.go", "api.yml", "database.sql", "Makefile", "Dockerfile", "docker-compose.yml"]
+alwaysApply: true
+---
+
+# UserService — Go Backend Rules
+
+## Project Context
+Go REST API backend using Echo v4, oapi-codegen (OpenAPI-first), and PostgreSQL.
+
+- Module: `github.com/SawitProRecruitment/UserService`
+- Go 1.21+, Echo v4, lib/pq, golang/mock, testify
+- App port: **1323** (internal) / **8080** (Docker external)
+- DB: PostgreSQL 14
+
+## Architecture
+
+| Layer | Package | Responsibility |
+|---|---|---|
+| Entry | `cmd/` | Wire Echo + handler + repository |
+| HTTP | `handler/` | Parse requests, validate, format responses |
+| Data | `repository/` | All SQL queries |
+| Generated | `generated/` | Auto from `api.yml` — never edit |
+
+## Critical Rules
+
+### OpenAPI First
+- Edit `api.yml` before writing any handler code
+- Run `make generate` after every `api.yml` change
+- `generated/` is read-only
+
+### Strict Layer Separation
+- `handler/` → NO direct SQL; only call `s.Repository.*`
+- `repository/` → NO HTTP types; only `database/sql`
+- New DB methods → declare in `repository/interfaces.go` first
+
+### Mocks
+- After editing `repository/interfaces.go` → run `make generate_mocks`
+- Unit tests in `handler/endpoints_test.go` use mocks only, never real DB
+
+### Error Handling
+```go
+// Always use ErrorResponse schema
+return ctx.JSON(http.StatusBadRequest, generated.ErrorResponse{Message: "..."})
+```
+Return 400 for validation failures, 404 for not found, 500 for unexpected errors.
+
+### UUIDs
+```go
+import "github.com/google/uuid"
+id := uuid.New() // server-side only, never from client input
+```
+
+## Domain
+
+- **Estate**: `id (UUID)`, `length`, `width` — grid dimensions
+- **Tree**: `id (UUID)`, `estate_id`, `x`, `y`, `height`
+- Trees must be within bounds: `1 ≤ x ≤ width`, `1 ≤ y ≤ length`
+
+## Key Commands
+
+```bash
+make init           # First-time setup
+make generate       # Regen from api.yml + interfaces
+make test           # Unit tests
+make test_api       # Integration tests (needs live server)
+docker compose up --build              # Start everything
+docker compose down --volumes          # Reset DB
+```
+
+## File Patterns
+
+### New endpoint checklist
+1. `api.yml` — add path + schema
+2. `make generate`
+3. `repository/interfaces.go` — add method
+4. `repository/types.go` — add Input/Output structs
+5. `repository/implementations.go` — implement SQL
+6. `make generate_mocks`
+7. `handler/endpoints.go` — implement handler
+8. `handler/endpoints_test.go` — add unit test
+9. `tests/api_test.go` — add integration test case
+
+### Handler template
+```go
+func (s *Server) PostEstate(ctx echo.Context) error {
+    var req generated.CreateEstateRequest
+    if err := ctx.Bind(&req); err != nil {
+        return ctx.JSON(http.StatusBadRequest, generated.ErrorResponse{Message: "invalid body"})
+    }
+    if req.Length <= 0 || req.Width <= 0 {
+        return ctx.JSON(http.StatusBadRequest, generated.ErrorResponse{Message: "length and width must be positive"})
+    }
+    out, err := s.Repository.CreateEstate(ctx.Request().Context(), repository.CreateEstateInput{...})
+    if err != nil {
+        return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: "internal error"})
+    }
+    return ctx.JSON(http.StatusOK, generated.CreateEstateResponse{Id: out.Id})
+}
+```
+
+## Don'ts
+- Never edit `generated/` or `repository/interfaces.mock.gen.go` by hand
+- Never write SQL in handlers
+- Never use `panic` except in startup (`NewRepository`)
+- Never accept UUIDs from client request bodies for entity IDs
