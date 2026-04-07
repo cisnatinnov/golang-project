@@ -8,10 +8,10 @@
 *.so
 *.dylib
 .env
-app.log
 *.log
 *.txt
 CLAUDE.md
+rules.md
 
 build
 
