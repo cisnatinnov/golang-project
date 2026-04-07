@@ -33,12 +33,12 @@ func (r *Repository) CreateTree(ctx context.Context, input CreateTreeInput) (out
 
 func (r *Repository) GetEstateStats(ctx context.Context, input GetEstateStatsInput) (output GetEstateStatsOutput, err error) {
 	err = r.Db.QueryRowContext(ctx, `
-		SELECT 
-			COUNT(id), 
-			COALESCE(MAX(height), 0), 
-			COALESCE(MIN(height), 0), 
+		SELECT
+			COUNT(id),
+			COALESCE(MAX(height), 0),
+			COALESCE(MIN(height), 0),
 			COALESCE(PERCENTILE_CONT(0.5) WITHIN GROUP (ORDER BY height), 0)
-		FROM tree 
+		FROM tree
 		WHERE estate_id = $1
 	`, input.EstateId).Scan(&output.Count, &output.Max, &output.Min, &output.Median)
 	return
@@ -59,5 +59,40 @@ func (r *Repository) GetTreesByEstateId(ctx context.Context, input GetTreesByEst
 		output.Trees = append(output.Trees, t)
 	}
 	err = rows.Err()
+	return
+}
+
+func (r *Repository) CreateUser(ctx context.Context, input CreateUserInput) (output CreateUserOutput, err error) {
+	id := uuid.New().String()
+	_, err = r.Db.ExecContext(ctx, "INSERT INTO users (id, username, email, password_hash) VALUES ($1, $2, $3, $4)", id, input.Username, input.Email, input.PasswordHash)
+	if err != nil {
+		return
+	}
+	output.Id = id
+	return
+}
+
+func (r *Repository) GetUserById(ctx context.Context, id string) (user User, err error) {
+	err = r.Db.QueryRowContext(ctx, "SELECT id, username, email, password_hash FROM users WHERE id = $1", id).Scan(&user.Id, &user.Username, &user.Email, &user.PasswordHash)
+	return
+}
+
+func (r *Repository) GetUserByUsername(ctx context.Context, username string) (user User, err error) {
+	err = r.Db.QueryRowContext(ctx, "SELECT id, username, email, password_hash FROM users WHERE username = $1", username).Scan(&user.Id, &user.Username, &user.Email, &user.PasswordHash)
+	return
+}
+
+func (r *Repository) GetUserByEmail(ctx context.Context, email string) (user User, err error) {
+	err = r.Db.QueryRowContext(ctx, "SELECT id, username, email, password_hash FROM users WHERE email = $1", email).Scan(&user.Id, &user.Username, &user.Email, &user.PasswordHash)
+	return
+}
+
+func (r *Repository) UpdateUser(ctx context.Context, input UpdateUserInput) (err error) {
+	_, err = r.Db.ExecContext(ctx, "UPDATE users SET username = $1, email = $2, password_hash = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4", input.Username, input.Email, input.PasswordHash, input.Id)
+	return
+}
+
+func (r *Repository) DeleteUser(ctx context.Context, id string) (err error) {
+	_, err = r.Db.ExecContext(ctx, "DELETE FROM users WHERE id = $1", id)
 	return
 }

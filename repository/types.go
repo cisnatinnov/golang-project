@@ -52,3 +52,27 @@ type GetTreesByEstateIdInput struct {
 type GetTreesByEstateIdOutput struct {
 	Trees []Tree
 }
+
+type User struct {
+	Id           string
+	Username     string
+	Email        string
+	PasswordHash string
+}
+
+type CreateUserInput struct {
+	Username     string
+	Email        string
+	PasswordHash string
+}
+
+type CreateUserOutput struct {
+	Id string
+}
+
+type UpdateUserInput struct {
+	Id           string
+	Username     string
+	Email        string
+	PasswordHash string
+}

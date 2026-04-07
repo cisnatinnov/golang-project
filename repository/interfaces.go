@@ -12,4 +12,10 @@ type RepositoryInterface interface {
 	CreateTree(ctx context.Context, input CreateTreeInput) (output CreateTreeOutput, err error)
 	GetEstateStats(ctx context.Context, input GetEstateStatsInput) (output GetEstateStatsOutput, err error)
 	GetTreesByEstateId(ctx context.Context, input GetTreesByEstateIdInput) (output GetTreesByEstateIdOutput, err error)
+	CreateUser(ctx context.Context, input CreateUserInput) (output CreateUserOutput, err error)
+	GetUserById(ctx context.Context, id string) (user User, err error)
+	GetUserByUsername(ctx context.Context, username string) (user User, err error)
+	GetUserByEmail(ctx context.Context, email string) (user User, err error)
+	UpdateUser(ctx context.Context, input UpdateUserInput) (err error)
+	DeleteUser(ctx context.Context, id string) (err error)
 }
