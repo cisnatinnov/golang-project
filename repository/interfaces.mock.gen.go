@@ -183,6 +183,21 @@ func (mr *MockRepositoryInterfaceMockRecorder) GetUserByUsername(ctx, username i
 	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserByUsername", reflect.TypeOf((*MockRepositoryInterface)(nil).GetUserByUsername), ctx, username)
 }
 
+// GetUserByUsernameOrEmail mocks base method.
+func (m *MockRepositoryInterface) GetUserByUsernameOrEmail(ctx context.Context, input GetUserByUsernameOrEmailInput) (User, error) {
+	m.ctrl.T.Helper()
+	ret := m.ctrl.Call(m, "GetUserByUsernameOrEmail", ctx, input)
+	ret0, _ := ret[0].(User)
+	ret1, _ := ret[1].(error)
+	return ret0, ret1
+}
+
+// GetUserByUsernameOrEmail indicates an expected call of GetUserByUsernameOrEmail.
+func (mr *MockRepositoryInterfaceMockRecorder) GetUserByUsernameOrEmail(ctx, input interface{}) *gomock.Call {
+	mr.mock.ctrl.T.Helper()
+	return mr.mock.ctrl.RecordCallWithMethodType(mr.mock, "GetUserByUsernameOrEmail", reflect.TypeOf((*MockRepositoryInterface)(nil).GetUserByUsernameOrEmail), ctx, input)
+}
+
 // UpdateUser mocks base method.
 func (m *MockRepositoryInterface) UpdateUser(ctx context.Context, input UpdateUserInput) error {
 	m.ctrl.T.Helper()

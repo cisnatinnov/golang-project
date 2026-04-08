@@ -87,6 +87,15 @@ func (r *Repository) GetUserByEmail(ctx context.Context, email string) (user Use
 	return
 }
 
+func (r *Repository) GetUserByUsernameOrEmail(ctx context.Context, input GetUserByUsernameOrEmailInput) (user User, err error) {
+	err = r.Db.QueryRowContext(ctx, `
+		SELECT id, username, email, password_hash FROM users
+		WHERE (username = $1 AND $1 != '') OR (email = $2 AND $2 != '')
+		LIMIT 1
+	`, input.Username, input.Email).Scan(&user.Id, &user.Username, &user.Email, &user.PasswordHash)
+	return
+}
+
 func (r *Repository) UpdateUser(ctx context.Context, input UpdateUserInput) (err error) {
 	_, err = r.Db.ExecContext(ctx, "UPDATE users SET username = $1, email = $2, password_hash = $3, updated_at = CURRENT_TIMESTAMP WHERE id = $4", input.Username, input.Email, input.PasswordHash, input.Id)
 	return

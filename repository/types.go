@@ -76,3 +76,8 @@ type UpdateUserInput struct {
 	Email        string
 	PasswordHash string
 }
+
+type GetUserByUsernameOrEmailInput struct {
+	Username string
+	Email    string
+}

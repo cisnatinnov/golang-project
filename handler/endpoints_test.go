@@ -209,7 +209,7 @@ func TestPostLogin(t *testing.T) {
 
 		userId := uuid.New().String()
 		mockRepo.EXPECT().
-			GetUserByUsername(gomock.Any(), "testuser").
+			GetUserByUsernameOrEmail(gomock.Any(), repository.GetUserByUsernameOrEmailInput{Username: "testuser", Email: ""}).
 			Return(repository.User{Id: userId, Username: "testuser", Email: "test@example.com", PasswordHash: "hashed_password"}, nil)
 
 		if assert.NoError(t, server.PostLogin(c)) {
@@ -229,7 +229,7 @@ func TestPostLogin(t *testing.T) {
 
 		userId := uuid.New().String()
 		mockRepo.EXPECT().
-			GetUserByEmail(gomock.Any(), "test@example.com").
+			GetUserByUsernameOrEmail(gomock.Any(), repository.GetUserByUsernameOrEmailInput{Username: "", Email: "test@example.com"}).
 			Return(repository.User{Id: userId, Username: "testuser", Email: "test@example.com", PasswordHash: "hashed_password"}, nil)
 
 		if assert.NoError(t, server.PostLogin(c)) {
@@ -248,7 +248,7 @@ func TestPostLogin(t *testing.T) {
 		c := e.NewContext(req, rec)
 
 		mockRepo.EXPECT().
-			GetUserByUsername(gomock.Any(), "nonexistent").
+			GetUserByUsernameOrEmail(gomock.Any(), repository.GetUserByUsernameOrEmailInput{Username: "nonexistent", Email: ""}).
 			Return(repository.User{}, sql.ErrNoRows)
 
 		if assert.NoError(t, server.PostLogin(c)) {
@@ -264,7 +264,7 @@ func TestPostLogin(t *testing.T) {
 		c := e.NewContext(req, rec)
 
 		mockRepo.EXPECT().
-			GetUserByEmail(gomock.Any(), "nonexistent@example.com").
+			GetUserByUsernameOrEmail(gomock.Any(), repository.GetUserByUsernameOrEmailInput{Username: "", Email: "nonexistent@example.com"}).
 			Return(repository.User{}, sql.ErrNoRows)
 
 		if assert.NoError(t, server.PostLogin(c)) {

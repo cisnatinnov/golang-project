@@ -183,16 +183,20 @@ func (s *Server) PostLogin(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, generated.ErrorResponse{Message: "Username or email is required"})
 	}
 
-	var user repository.User
-	var err error
-
-	// Try to login with username if provided
-	if req.Username != nil && *req.Username != "" {
-		user, err = s.Repository.GetUserByUsername(ctx.Request().Context(), *req.Username)
-	} else if req.Email != nil && string(*req.Email) != "" {
-		// Otherwise try to login with email
-		user, err = s.Repository.GetUserByEmail(ctx.Request().Context(), string(*req.Email))
+	username := ""
+	if req.Username != nil {
+		username = *req.Username
 	}
+
+	email := ""
+	if req.Email != nil {
+		email = string(*req.Email)
+	}
+
+	user, err := s.Repository.GetUserByUsernameOrEmail(ctx.Request().Context(), repository.GetUserByUsernameOrEmailInput{
+		Username: username,
+		Email:    email,
+	})
 
 	if err == sql.ErrNoRows {
 		return ctx.JSON(http.StatusUnauthorized, generated.ErrorResponse{Message: "Invalid credentials"})
