@@ -1,0 +1,326 @@
+{
+  "info": {
+    "_postman_id": "user-service-api",
+    "name": "User Service API",
+    "description": "API collection for User Service - Go REST API backend with Bearer Token Authentication",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "item": [
+    {
+      "name": "Estate",
+      "item": [
+        {
+          "name": "Create Estate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"length\": 100,\n  \"width\": 50\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/estate",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "estate"
+              ]
+            },
+            "description": "Create a new estate with specified length and width (requires authentication)"
+          }
+        },
+        {
+          "name": "Add Tree to Estate",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"x\": 10,\n  \"y\": 20,\n  \"height\": 15\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/estate/{{estate_id}}/tree",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "estate",
+                "{{estate_id}}",
+                "tree"
+              ]
+            },
+            "description": "Add a tree to an estate at specified coordinates with height (requires authentication)"
+          }
+        },
+        {
+          "name": "Get Estate Stats",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/estate/{{estate_id}}/stats",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "estate",
+                "{{estate_id}}",
+                "stats"
+              ]
+            },
+            "description": "Get statistics (count, min, max, median) of tree heights in an estate (requires authentication)"
+          }
+        },
+        {
+          "name": "Get Drone Plan",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/estate/{{estate_id}}/drone-plan?distance=",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "estate",
+                "{{estate_id}}",
+                "drone-plan"
+              ],
+              "query": [
+                {
+                  "key": "distance",
+                  "value": "",
+                  "disabled": true
+                }
+              ]
+            },
+            "description": "Get the total distance for drone survey plan of an estate (requires authentication)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "User",
+      "item": [
+        {
+          "name": "Create User",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"john_doe\",\n  \"email\": \"john@example.com\",\n  \"password\": \"SecurePassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/users",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users"
+              ]
+            },
+            "description": "Create a new user with username, email, and password"
+          }
+        },
+        {
+          "name": "Login",
+          "request": {
+            "method": "POST",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"john_doe\",\n  \"email\": null,\n  \"password\": \"SecurePassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/login",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "login"
+              ]
+            },
+            "description": "Login with username or email and password - use returned token for authenticated requests"
+          }
+        },
+        {
+          "name": "Get User",
+          "request": {
+            "method": "GET",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/{{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "{{user_id}}"
+              ]
+            },
+            "description": "Get user details by ID (requires Authorization header with bearer token)"
+          }
+        },
+        {
+          "name": "Update User",
+          "request": {
+            "method": "PUT",
+            "header": [
+              {
+                "key": "Content-Type",
+                "value": "application/json"
+              },
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}",
+                "type": "text"
+              }
+            ],
+            "body": {
+              "mode": "raw",
+              "raw": "{\n  \"username\": \"john_doe_updated\",\n  \"email\": \"john_new@example.com\",\n  \"password\": \"NewSecurePassword123\"\n}"
+            },
+            "url": {
+              "raw": "{{base_url}}/users/{{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "{{user_id}}"
+              ]
+            },
+            "description": "Update user information (requires Authorization header with bearer token)"
+          }
+        },
+        {
+          "name": "Delete User",
+          "request": {
+            "method": "DELETE",
+            "header": [
+              {
+                "key": "Authorization",
+                "value": "Bearer {{bearer_token}}",
+                "type": "text"
+              }
+            ],
+            "url": {
+              "raw": "{{base_url}}/users/{{user_id}}",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "users",
+                "{{user_id}}"
+              ]
+            },
+            "description": "Delete a user by ID (requires Authorization header with bearer token)"
+          }
+        }
+      ]
+    },
+    {
+      "name": "Hello",
+      "item": [
+        {
+          "name": "Get Hello",
+          "request": {
+            "method": "GET",
+            "header": [],
+            "url": {
+              "raw": "{{base_url}}/hello?id=1",
+              "host": [
+                "{{base_url}}"
+              ],
+              "path": [
+                "hello"
+              ],
+              "query": [
+                {
+                  "key": "id",
+                  "value": "1"
+                }
+              ]
+            },
+            "description": "Test endpoint that returns a hello message with the provided ID"
+          }
+        }
+      ]
+    }
+  ],
+  "variable": [
+    {
+      "key": "base_url",
+      "value": "http://localhost:8080",
+      "type": "string"
+    },
+    {
+      "key": "estate_id",
+      "value": "",
+      "type": "string",
+      "description": "Estate ID from create estate response"
+    },
+    {
+      "key": "user_id",
+      "value": "",
+      "type": "string",
+      "description": "User ID from create user or login response"
+    },
+    {
+      "key": "bearer_token",
+      "value": "",
+      "type": "string",
+      "description": "Bearer token from login response (format: placeholder_token_{user_id})"
+    }
+  ]
+}

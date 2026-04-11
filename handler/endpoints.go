@@ -15,6 +15,12 @@ import (
 )
 
 func (s *Server) PostEstate(ctx echo.Context) error {
+	// Get authenticated user ID from context
+	authUserID := GetUserIDFromContext(ctx)
+	if authUserID == "" {
+		return ctx.JSON(http.StatusUnauthorized, generated.ErrorResponse{Message: "Unauthorized"})
+	}
+
 	var req generated.CreateEstateRequest
 	if err := ctx.Bind(&req); err != nil {
 		return ctx.JSON(http.StatusBadRequest, generated.ErrorResponse{Message: "Invalid request body"})
@@ -40,6 +46,12 @@ func (s *Server) PostEstate(ctx echo.Context) error {
 }
 
 func (s *Server) PostEstateIdTree(ctx echo.Context, id oapi_types.UUID) error {
+	// Get authenticated user ID from context
+	authUserID := GetUserIDFromContext(ctx)
+	if authUserID == "" {
+		return ctx.JSON(http.StatusUnauthorized, generated.ErrorResponse{Message: "Unauthorized"})
+	}
+
 	var req generated.AddTreeRequest
 	if err := ctx.Bind(&req); err != nil {
 		return ctx.JSON(http.StatusBadRequest, generated.ErrorResponse{Message: "Invalid request body"})
@@ -78,6 +90,12 @@ func (s *Server) PostEstateIdTree(ctx echo.Context, id oapi_types.UUID) error {
 }
 
 func (s *Server) GetEstateIdStats(ctx echo.Context, id oapi_types.UUID) error {
+	// Get authenticated user ID from context
+	authUserID := GetUserIDFromContext(ctx)
+	if authUserID == "" {
+		return ctx.JSON(http.StatusUnauthorized, generated.ErrorResponse{Message: "Unauthorized"})
+	}
+
 	// check if estate exists
 	_, err := s.Repository.GetEstateById(ctx.Request().Context(), id.String())
 	if err == sql.ErrNoRows {
@@ -102,6 +120,12 @@ func (s *Server) GetEstateIdStats(ctx echo.Context, id oapi_types.UUID) error {
 }
 
 func (s *Server) GetEstateIdDronePlan(ctx echo.Context, id oapi_types.UUID, params generated.GetEstateIdDronePlanParams) error {
+	// Get authenticated user ID from context
+	authUserID := GetUserIDFromContext(ctx)
+	if authUserID == "" {
+		return ctx.JSON(http.StatusUnauthorized, generated.ErrorResponse{Message: "Unauthorized"})
+	}
+
 	estate, err := s.Repository.GetEstateById(ctx.Request().Context(), id.String())
 	if err == sql.ErrNoRows {
 		return ctx.JSON(http.StatusNotFound, generated.ErrorResponse{Message: "Estate not found"})
@@ -204,8 +228,12 @@ func (s *Server) PostLogin(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: err.Error()})
 	}
 
-	// Placeholder: In real implementation, verify password hash
-	// For now, just return a token
+	// Verify password
+	err = repository.VerifyPassword(user.PasswordHash, req.Password)
+	if err != nil {
+		return ctx.JSON(http.StatusUnauthorized, generated.ErrorResponse{Message: "Invalid credentials"})
+	}
+
 	return ctx.JSON(http.StatusOK, generated.LoginResponse{
 		Token: "placeholder_token_" + user.Id,
 	})
@@ -237,8 +265,11 @@ func (s *Server) PostUsers(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: err.Error()})
 	}
 
-	// Hash password (placeholder)
-	hashedPassword := req.Password // In real implementation, hash this
+	// Hash password
+	hashedPassword, err := repository.HashPassword(req.Password)
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: "Failed to hash password"})
+	}
 
 	out, err := s.Repository.CreateUser(ctx.Request().Context(), repository.CreateUserInput{
 		Username:     req.Username,
@@ -256,6 +287,17 @@ func (s *Server) PostUsers(ctx echo.Context) error {
 }
 
 func (s *Server) GetUsersId(ctx echo.Context, id oapi_types.UUID) error {
+	// Get authenticated user ID from context
+	authUserID := GetUserIDFromContext(ctx)
+	if authUserID == "" {
+		return ctx.JSON(http.StatusUnauthorized, generated.ErrorResponse{Message: "Unauthorized"})
+	}
+
+	// Verify user is accessing their own profile
+	if authUserID != id.String() {
+		return ctx.JSON(http.StatusUnauthorized, generated.ErrorResponse{Message: "Unauthorized to access this user"})
+	}
+
 	user, err := s.Repository.GetUserById(ctx.Request().Context(), id.String())
 	if err == sql.ErrNoRows {
 		return ctx.JSON(http.StatusNotFound, generated.ErrorResponse{Message: "User not found"})
@@ -272,6 +314,17 @@ func (s *Server) GetUsersId(ctx echo.Context, id oapi_types.UUID) error {
 }
 
 func (s *Server) PutUsersId(ctx echo.Context, id oapi_types.UUID) error {
+	// Get authenticated user ID from context
+	authUserID := GetUserIDFromContext(ctx)
+	if authUserID == "" {
+		return ctx.JSON(http.StatusUnauthorized, generated.ErrorResponse{Message: "Unauthorized"})
+	}
+
+	// Verify user is accessing their own profile
+	if authUserID != id.String() {
+		return ctx.JSON(http.StatusUnauthorized, generated.ErrorResponse{Message: "Unauthorized to access this user"})
+	}
+
 	var req generated.UpdateUserRequest
 	if err := ctx.Bind(&req); err != nil {
 		return ctx.JSON(http.StatusBadRequest, generated.ErrorResponse{Message: "Invalid request body"})
@@ -309,8 +362,11 @@ func (s *Server) PutUsersId(ctx echo.Context, id oapi_types.UUID) error {
 		}
 	}
 
-	// Hash password (placeholder)
-	hashedPassword := req.Password // In real implementation, hash this
+	// Hash password
+	hashedPassword, err := repository.HashPassword(req.Password)
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: "Failed to hash password"})
+	}
 
 	err = s.Repository.UpdateUser(ctx.Request().Context(), repository.UpdateUserInput{
 		Id:           id.String(),
@@ -328,6 +384,17 @@ func (s *Server) PutUsersId(ctx echo.Context, id oapi_types.UUID) error {
 }
 
 func (s *Server) DeleteUsersId(ctx echo.Context, id oapi_types.UUID) error {
+	// Get authenticated user ID from context
+	authUserID := GetUserIDFromContext(ctx)
+	if authUserID == "" {
+		return ctx.JSON(http.StatusUnauthorized, generated.ErrorResponse{Message: "Unauthorized"})
+	}
+
+	// Verify user is accessing their own profile
+	if authUserID != id.String() {
+		return ctx.JSON(http.StatusUnauthorized, generated.ErrorResponse{Message: "Unauthorized to access this user"})
+	}
+
 	// Check if user exists
 	_, err := s.Repository.GetUserById(ctx.Request().Context(), id.String())
 	if err == sql.ErrNoRows {

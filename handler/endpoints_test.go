@@ -17,6 +17,92 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
+// Helper function to create bearer token from user ID
+func createBearerToken(userID string) string {
+	return "placeholder_token_" + userID
+}
+
+func TestBearerTokenMiddleware(t *testing.T) {
+	ctrl := gomock.NewController(t)
+	defer ctrl.Finish()
+
+	mockRepo := repository.NewMockRepositoryInterface(ctrl)
+	server := &Server{Repository: mockRepo}
+	e := echo.New()
+
+	// Test handler that just returns OK
+	testHandler := func(c echo.Context) error {
+		return c.JSON(http.StatusOK, map[string]string{"message": "ok"})
+	}
+
+	t.Run("Valid Bearer Token", func(t *testing.T) {
+		userID := uuid.New().String()
+		token := createBearerToken(userID)
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+
+		handler := server.BearerTokenMiddleware(testHandler)
+		err := handler(c)
+
+		if assert.NoError(t, err) {
+			assert.Equal(t, userID, c.Get(ContextKeyUserID))
+			assert.Equal(t, http.StatusOK, rec.Code)
+		}
+	})
+
+	t.Run("Missing Authorization Header", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+
+		handler := server.BearerTokenMiddleware(testHandler)
+		_ = handler(c)
+
+		assert.Equal(t, http.StatusUnauthorized, rec.Code)
+		var resp generated.ErrorResponse
+		_ = json.Unmarshal(rec.Body.Bytes(), &resp)
+		assert.Contains(t, resp.Message, "Missing authorization header")
+	})
+
+	t.Run("Invalid Authorization Format", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.Header.Set("Authorization", "InvalidToken")
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+
+		handler := server.BearerTokenMiddleware(testHandler)
+		_ = handler(c)
+
+		assert.Equal(t, http.StatusUnauthorized, rec.Code)
+	})
+
+	t.Run("Empty Bearer Token", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.Header.Set("Authorization", "Bearer ")
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+
+		handler := server.BearerTokenMiddleware(testHandler)
+		_ = handler(c)
+
+		assert.Equal(t, http.StatusUnauthorized, rec.Code)
+	})
+
+	t.Run("Invalid Token Format", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/test", nil)
+		req.Header.Set("Authorization", "Bearer invalid_token_format")
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+
+		handler := server.BearerTokenMiddleware(testHandler)
+		_ = handler(c)
+
+		assert.Equal(t, http.StatusUnauthorized, rec.Code)
+	})
+}
+
 func TestPostEstate(t *testing.T) {
 	ctrl := gomock.NewController(t)
 	defer ctrl.Finish()
@@ -24,13 +110,17 @@ func TestPostEstate(t *testing.T) {
 	mockRepo := repository.NewMockRepositoryInterface(ctrl)
 	e := echo.New()
 	server := &Server{Repository: mockRepo}
+	userID := uuid.New().String()
+	token := createBearerToken(userID)
 
 	t.Run("Success", func(t *testing.T) {
 		reqBody := `{"length": 10, "width": 5}`
 		req := httptest.NewRequest(http.MethodPost, "/estate", strings.NewReader(reqBody))
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		req.Header.Set("Authorization", "Bearer "+token)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
+		c.Set(ContextKeyUserID, userID)
 
 		estateId := uuid.New().String()
 		mockRepo.EXPECT().
@@ -42,12 +132,26 @@ func TestPostEstate(t *testing.T) {
 		}
 	})
 
-	t.Run("Invalid Dimensions", func(t *testing.T) {
-		reqBody := `{"length": 0, "width": 5}`
+	t.Run("Unauthorized - No Token", func(t *testing.T) {
+		reqBody := `{"length": 10, "width": 5}`
 		req := httptest.NewRequest(http.MethodPost, "/estate", strings.NewReader(reqBody))
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
+
+		if assert.NoError(t, server.PostEstate(c)) {
+			assert.Equal(t, http.StatusUnauthorized, rec.Code)
+		}
+	})
+
+	t.Run("Invalid Dimensions", func(t *testing.T) {
+		reqBody := `{"length": 0, "width": 5}`
+		req := httptest.NewRequest(http.MethodPost, "/estate", strings.NewReader(reqBody))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+		c.Set(ContextKeyUserID, userID)
 
 		if assert.NoError(t, server.PostEstate(c)) {
 			assert.Equal(t, http.StatusBadRequest, rec.Code)
@@ -64,13 +168,17 @@ func TestPostEstateIdTree(t *testing.T) {
 	server := &Server{Repository: mockRepo}
 	estateIdRaw := uuid.New()
 	estateId := oapi_types.UUID(estateIdRaw)
+	userID := uuid.New().String()
+	token := createBearerToken(userID)
 
 	t.Run("Success", func(t *testing.T) {
 		reqBody := `{"x": 2, "y": 3, "height": 10}`
 		req := httptest.NewRequest(http.MethodPost, "/estate/"+estateId.String()+"/tree", strings.NewReader(reqBody))
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		req.Header.Set("Authorization", "Bearer "+token)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
+		c.Set(ContextKeyUserID, userID)
 
 		mockRepo.EXPECT().GetEstateById(gomock.Any(), estateId.String()).
 			Return(repository.Estate{Id: estateId.String(), Length: 10, Width: 10}, nil)
@@ -88,12 +196,26 @@ func TestPostEstateIdTree(t *testing.T) {
 		}
 	})
 
-	t.Run("Out of Bounds", func(t *testing.T) {
-		reqBody := `{"x": 11, "y": 3, "height": 10}`
+	t.Run("Unauthorized - No Token", func(t *testing.T) {
+		reqBody := `{"x": 2, "y": 3, "height": 10}`
 		req := httptest.NewRequest(http.MethodPost, "/estate/"+estateId.String()+"/tree", strings.NewReader(reqBody))
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
+
+		if assert.NoError(t, server.PostEstateIdTree(c, estateId)) {
+			assert.Equal(t, http.StatusUnauthorized, rec.Code)
+		}
+	})
+
+	t.Run("Out of Bounds", func(t *testing.T) {
+		reqBody := `{"x": 11, "y": 3, "height": 10}`
+		req := httptest.NewRequest(http.MethodPost, "/estate/"+estateId.String()+"/tree", strings.NewReader(reqBody))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+		c.Set(ContextKeyUserID, userID)
 
 		mockRepo.EXPECT().GetEstateById(gomock.Any(), estateId.String()).
 			Return(repository.Estate{Id: estateId.String(), Length: 10, Width: 10}, nil)
@@ -107,8 +229,10 @@ func TestPostEstateIdTree(t *testing.T) {
 		reqBody := `{"x": 2, "y": 3, "height": 10}`
 		req := httptest.NewRequest(http.MethodPost, "/estate/"+estateId.String()+"/tree", strings.NewReader(reqBody))
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		req.Header.Set("Authorization", "Bearer "+token)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
+		c.Set(ContextKeyUserID, userID)
 
 		mockRepo.EXPECT().GetEstateById(gomock.Any(), estateId.String()).Return(repository.Estate{}, sql.ErrNoRows)
 
@@ -127,11 +251,15 @@ func TestGetEstateIdStats(t *testing.T) {
 	server := &Server{Repository: mockRepo}
 	estateIdRaw := uuid.New()
 	estateId := oapi_types.UUID(estateIdRaw)
+	userID := uuid.New().String()
+	token := createBearerToken(userID)
 
 	t.Run("Success", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/estate/"+estateId.String()+"/stats", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
+		c.Set(ContextKeyUserID, userID)
 
 		mockRepo.EXPECT().GetEstateById(gomock.Any(), estateId.String()).Return(repository.Estate{}, nil)
 		mockRepo.EXPECT().GetEstateStats(gomock.Any(), repository.GetEstateStatsInput{EstateId: estateId.String()}).
@@ -140,9 +268,19 @@ func TestGetEstateIdStats(t *testing.T) {
 		if assert.NoError(t, server.GetEstateIdStats(c, estateId)) {
 			assert.Equal(t, http.StatusOK, rec.Code)
 			var resp generated.EstateStatsResponse
-			json.Unmarshal(rec.Body.Bytes(), &resp)
+			assert.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 			assert.Equal(t, 10, resp.Count)
 			assert.Equal(t, 12, resp.Median)
+		}
+	})
+
+	t.Run("Unauthorized - No Token", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/estate/"+estateId.String()+"/stats", nil)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+
+		if assert.NoError(t, server.GetEstateIdStats(c, estateId)) {
+			assert.Equal(t, http.StatusUnauthorized, rec.Code)
 		}
 	})
 }
@@ -156,11 +294,15 @@ func TestGetEstateIdDronePlan(t *testing.T) {
 	server := &Server{Repository: mockRepo}
 	estateIdRaw := uuid.New()
 	estateId := oapi_types.UUID(estateIdRaw)
+	userID := uuid.New().String()
+	token := createBearerToken(userID)
 
 	t.Run("Success Calculation", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/estate/"+estateId.String()+"/drone-plan", nil)
+		req.Header.Set("Authorization", "Bearer "+token)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
+		c.Set(ContextKeyUserID, userID)
 
 		// 5x1 grid, one tree at (2,1) height 5
 		mockRepo.EXPECT().GetEstateById(gomock.Any(), estateId.String()).
@@ -186,8 +328,18 @@ func TestGetEstateIdDronePlan(t *testing.T) {
 		if assert.NoError(t, server.GetEstateIdDronePlan(c, estateId, generated.GetEstateIdDronePlanParams{})) {
 			assert.Equal(t, http.StatusOK, rec.Code)
 			var resp generated.DronePlanResponse
-			json.Unmarshal(rec.Body.Bytes(), &resp)
+			assert.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 			assert.Equal(t, 52, resp.Distance)
+		}
+	})
+
+	t.Run("Unauthorized - No Token", func(t *testing.T) {
+		req := httptest.NewRequest(http.MethodGet, "/estate/"+estateId.String()+"/drone-plan", nil)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+
+		if assert.NoError(t, server.GetEstateIdDronePlan(c, estateId, generated.GetEstateIdDronePlanParams{})) {
+			assert.Equal(t, http.StatusUnauthorized, rec.Code)
 		}
 	})
 }
@@ -208,14 +360,15 @@ func TestPostLogin(t *testing.T) {
 		c := e.NewContext(req, rec)
 
 		userId := uuid.New().String()
+		// Use valid bcrypt hash for "password123"
 		mockRepo.EXPECT().
 			GetUserByUsernameOrEmail(gomock.Any(), repository.GetUserByUsernameOrEmailInput{Username: "testuser", Email: ""}).
-			Return(repository.User{Id: userId, Username: "testuser", Email: "test@example.com", PasswordHash: "hashed_password"}, nil)
+			Return(repository.User{Id: userId, Username: "testuser", Email: "test@example.com", PasswordHash: "$2a$10$7cu3I0HGsd2ECtQ2ITgeb.AZKbsdDQT0JVAHyJJ6NU/IBAVKoh8EG"}, nil)
 
 		if assert.NoError(t, server.PostLogin(c)) {
 			assert.Equal(t, http.StatusOK, rec.Code)
 			var resp generated.LoginResponse
-			json.Unmarshal(rec.Body.Bytes(), &resp)
+			assert.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 			assert.Contains(t, resp.Token, "placeholder_token_")
 		}
 	})
@@ -228,14 +381,15 @@ func TestPostLogin(t *testing.T) {
 		c := e.NewContext(req, rec)
 
 		userId := uuid.New().String()
+		// Use valid bcrypt hash for "password123"
 		mockRepo.EXPECT().
 			GetUserByUsernameOrEmail(gomock.Any(), repository.GetUserByUsernameOrEmailInput{Username: "", Email: "test@example.com"}).
-			Return(repository.User{Id: userId, Username: "testuser", Email: "test@example.com", PasswordHash: "hashed_password"}, nil)
+			Return(repository.User{Id: userId, Username: "testuser", Email: "test@example.com", PasswordHash: "$2a$10$7cu3I0HGsd2ECtQ2ITgeb.AZKbsdDQT0JVAHyJJ6NU/IBAVKoh8EG"}, nil)
 
 		if assert.NoError(t, server.PostLogin(c)) {
 			assert.Equal(t, http.StatusOK, rec.Code)
 			var resp generated.LoginResponse
-			json.Unmarshal(rec.Body.Bytes(), &resp)
+			assert.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 			assert.Contains(t, resp.Token, "placeholder_token_")
 		}
 	})
@@ -321,18 +475,25 @@ func TestPostUsers(t *testing.T) {
 			Return(repository.User{}, sql.ErrNoRows)
 
 		userId := uuid.New().String()
+		// Use gomock.Any() for PasswordHash since bcrypt produces non-deterministic output
 		mockRepo.EXPECT().
-			CreateUser(gomock.Any(), repository.CreateUserInput{
-				Username:     "newuser",
-				Email:        "newuser@example.com",
-				PasswordHash: "password123",
+			CreateUser(gomock.Any(), gomock.All(
+			// Verify other fields
+			)).
+			Do(func(ctx interface{}, input repository.CreateUserInput) {
+				// Verify the input has expected values (except PasswordHash which is hashed)
+				assert.Equal(t, "newuser", input.Username)
+				assert.Equal(t, "newuser@example.com", input.Email)
+				// PasswordHash should be a non-empty bcrypt hash
+				assert.NotEmpty(t, input.PasswordHash)
+				assert.NotEqual(t, "password123", input.PasswordHash)
 			}).
 			Return(repository.CreateUserOutput{Id: userId}, nil)
 
 		if assert.NoError(t, server.PostUsers(c)) {
 			assert.Equal(t, http.StatusOK, rec.Code)
 			var resp generated.CreateUserResponse
-			json.Unmarshal(rec.Body.Bytes(), &resp)
+			assert.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 			assert.Equal(t, userId, resp.Id.String())
 		}
 	})
@@ -397,9 +558,12 @@ func TestGetUsersId(t *testing.T) {
 	userId := oapi_types.UUID(userIdRaw)
 
 	t.Run("Success", func(t *testing.T) {
+		token := createBearerToken(userId.String())
 		req := httptest.NewRequest(http.MethodGet, "/users/"+userId.String(), nil)
+		req.Header.Set("Authorization", "Bearer "+token)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
+		c.Set(ContextKeyUserID, userId.String())
 
 		mockRepo.EXPECT().
 			GetUserById(gomock.Any(), userId.String()).
@@ -408,16 +572,43 @@ func TestGetUsersId(t *testing.T) {
 		if assert.NoError(t, server.GetUsersId(c, userId)) {
 			assert.Equal(t, http.StatusOK, rec.Code)
 			var resp generated.UserResponse
-			json.Unmarshal(rec.Body.Bytes(), &resp)
+			assert.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 			assert.Equal(t, "testuser", resp.Username)
 			assert.Equal(t, "test@example.com", string(resp.Email))
 		}
 	})
 
-	t.Run("User Not Found", func(t *testing.T) {
+	t.Run("Unauthorized - No Token", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodGet, "/users/"+userId.String(), nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
+
+		if assert.NoError(t, server.GetUsersId(c, userId)) {
+			assert.Equal(t, http.StatusUnauthorized, rec.Code)
+		}
+	})
+
+	t.Run("Unauthorized - Different User", func(t *testing.T) {
+		otherUserId := uuid.New().String()
+		token := createBearerToken(otherUserId)
+		req := httptest.NewRequest(http.MethodGet, "/users/"+userId.String(), nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+		c.Set(ContextKeyUserID, otherUserId)
+
+		if assert.NoError(t, server.GetUsersId(c, userId)) {
+			assert.Equal(t, http.StatusUnauthorized, rec.Code)
+		}
+	})
+
+	t.Run("User Not Found", func(t *testing.T) {
+		token := createBearerToken(userId.String())
+		req := httptest.NewRequest(http.MethodGet, "/users/"+userId.String(), nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+		c.Set(ContextKeyUserID, userId.String())
 
 		mockRepo.EXPECT().
 			GetUserById(gomock.Any(), userId.String()).
@@ -440,11 +631,14 @@ func TestPutUsersId(t *testing.T) {
 	userId := oapi_types.UUID(userIdRaw)
 
 	t.Run("Success", func(t *testing.T) {
+		token := createBearerToken(userId.String())
 		reqBody := `{"username": "updateduser", "email": "updated@example.com", "password": "newpassword"}`
 		req := httptest.NewRequest(http.MethodPut, "/users/"+userId.String(), strings.NewReader(reqBody))
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		req.Header.Set("Authorization", "Bearer "+token)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
+		c.Set(ContextKeyUserID, userId.String())
 
 		mockRepo.EXPECT().
 			GetUserById(gomock.Any(), userId.String()).
@@ -459,12 +653,7 @@ func TestPutUsersId(t *testing.T) {
 			Return(repository.User{}, sql.ErrNoRows)
 
 		mockRepo.EXPECT().
-			UpdateUser(gomock.Any(), repository.UpdateUserInput{
-				Id:           userId.String(),
-				Username:     "updateduser",
-				Email:        "updated@example.com",
-				PasswordHash: "newpassword",
-			}).
+			UpdateUser(gomock.Any(), gomock.Any()).
 			Return(nil)
 
 		if assert.NoError(t, server.PutUsersId(c, userId)) {
@@ -472,12 +661,43 @@ func TestPutUsersId(t *testing.T) {
 		}
 	})
 
-	t.Run("User Not Found", func(t *testing.T) {
+	t.Run("Unauthorized - No Token", func(t *testing.T) {
 		reqBody := `{"username": "updateduser", "email": "updated@example.com", "password": "newpassword"}`
 		req := httptest.NewRequest(http.MethodPut, "/users/"+userId.String(), strings.NewReader(reqBody))
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
+
+		if assert.NoError(t, server.PutUsersId(c, userId)) {
+			assert.Equal(t, http.StatusUnauthorized, rec.Code)
+		}
+	})
+
+	t.Run("Unauthorized - Different User", func(t *testing.T) {
+		otherUserId := uuid.New().String()
+		token := createBearerToken(otherUserId)
+		reqBody := `{"username": "updateduser", "email": "updated@example.com", "password": "newpassword"}`
+		req := httptest.NewRequest(http.MethodPut, "/users/"+userId.String(), strings.NewReader(reqBody))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+		c.Set(ContextKeyUserID, otherUserId)
+
+		if assert.NoError(t, server.PutUsersId(c, userId)) {
+			assert.Equal(t, http.StatusUnauthorized, rec.Code)
+		}
+	})
+
+	t.Run("User Not Found", func(t *testing.T) {
+		token := createBearerToken(userId.String())
+		reqBody := `{"username": "updateduser", "email": "updated@example.com", "password": "newpassword"}`
+		req := httptest.NewRequest(http.MethodPut, "/users/"+userId.String(), strings.NewReader(reqBody))
+		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+		c.Set(ContextKeyUserID, userId.String())
 
 		mockRepo.EXPECT().
 			GetUserById(gomock.Any(), userId.String()).
@@ -490,11 +710,14 @@ func TestPutUsersId(t *testing.T) {
 
 	t.Run("Username Already Exists", func(t *testing.T) {
 		otherUserId := uuid.New().String()
+		token := createBearerToken(userId.String())
 		reqBody := `{"username": "takenuser", "email": "updated@example.com", "password": "newpassword"}`
 		req := httptest.NewRequest(http.MethodPut, "/users/"+userId.String(), strings.NewReader(reqBody))
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		req.Header.Set("Authorization", "Bearer "+token)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
+		c.Set(ContextKeyUserID, userId.String())
 
 		mockRepo.EXPECT().
 			GetUserById(gomock.Any(), userId.String()).
@@ -511,11 +734,14 @@ func TestPutUsersId(t *testing.T) {
 
 	t.Run("Email Already Exists", func(t *testing.T) {
 		otherUserId := uuid.New().String()
+		token := createBearerToken(userId.String())
 		reqBody := `{"username": "updateduser", "email": "taken@example.com", "password": "newpassword"}`
 		req := httptest.NewRequest(http.MethodPut, "/users/"+userId.String(), strings.NewReader(reqBody))
 		req.Header.Set(echo.HeaderContentType, echo.MIMEApplicationJSON)
+		req.Header.Set("Authorization", "Bearer "+token)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
+		c.Set(ContextKeyUserID, userId.String())
 
 		mockRepo.EXPECT().
 			GetUserById(gomock.Any(), userId.String()).
@@ -546,9 +772,12 @@ func TestDeleteUsersId(t *testing.T) {
 	userId := oapi_types.UUID(userIdRaw)
 
 	t.Run("Success", func(t *testing.T) {
+		token := createBearerToken(userId.String())
 		req := httptest.NewRequest(http.MethodDelete, "/users/"+userId.String(), nil)
+		req.Header.Set("Authorization", "Bearer "+token)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
+		c.Set(ContextKeyUserID, userId.String())
 
 		mockRepo.EXPECT().
 			GetUserById(gomock.Any(), userId.String()).
@@ -563,10 +792,37 @@ func TestDeleteUsersId(t *testing.T) {
 		}
 	})
 
-	t.Run("User Not Found", func(t *testing.T) {
+	t.Run("Unauthorized - No Token", func(t *testing.T) {
 		req := httptest.NewRequest(http.MethodDelete, "/users/"+userId.String(), nil)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
+
+		if assert.NoError(t, server.DeleteUsersId(c, userId)) {
+			assert.Equal(t, http.StatusUnauthorized, rec.Code)
+		}
+	})
+
+	t.Run("Unauthorized - Different User", func(t *testing.T) {
+		otherUserId := uuid.New().String()
+		token := createBearerToken(otherUserId)
+		req := httptest.NewRequest(http.MethodDelete, "/users/"+userId.String(), nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+		c.Set(ContextKeyUserID, otherUserId)
+
+		if assert.NoError(t, server.DeleteUsersId(c, userId)) {
+			assert.Equal(t, http.StatusUnauthorized, rec.Code)
+		}
+	})
+
+	t.Run("User Not Found", func(t *testing.T) {
+		token := createBearerToken(userId.String())
+		req := httptest.NewRequest(http.MethodDelete, "/users/"+userId.String(), nil)
+		req.Header.Set("Authorization", "Bearer "+token)
+		rec := httptest.NewRecorder()
+		c := e.NewContext(req, rec)
+		c.Set(ContextKeyUserID, userId.String())
 
 		mockRepo.EXPECT().
 			GetUserById(gomock.Any(), userId.String()).
