@@ -1,0 +1,15 @@
+$kind: http-request
+description: Create a new estate with specified length and width (requires authentication)
+url: "{{base_url}}/estate"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{bearer_token}}
+body:
+  type: text
+  content: |-
+    {
+      "length": 100,
+      "width": 50
+    }
+order: 1000

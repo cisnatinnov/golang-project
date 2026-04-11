@@ -1,0 +1,8 @@
+$kind: http-request
+description: Get statistics (count, min, max, median) of tree heights in an
+  estate (requires authentication)
+url: "{{base_url}}/estate/{{estate_id}}/stats"
+method: GET
+headers:
+  Authorization: Bearer {{bearer_token}}
+order: 3000

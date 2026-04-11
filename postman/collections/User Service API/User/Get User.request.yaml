@@ -1,0 +1,7 @@
+$kind: http-request
+description: Get user details by ID (requires Authorization header with bearer token)
+url: "{{base_url}}/users/{{user_id}}"
+method: GET
+headers:
+  Authorization: Bearer {{bearer_token}}
+order: 3000

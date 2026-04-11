@@ -1,0 +1,15 @@
+$kind: http-request
+description: Create a new user with username, email, and password
+url: "{{base_url}}/users"
+method: POST
+headers:
+  Content-Type: application/json
+body:
+  type: text
+  content: |-
+    {
+      "username": "john_doe",
+      "email": "john@example.com",
+      "password": "SecurePassword123"
+    }
+order: 1000

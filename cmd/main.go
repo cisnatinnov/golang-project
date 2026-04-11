@@ -17,8 +17,11 @@ import (
 func main() {
 	e := echo.New()
 
-	var server generated.ServerInterface = newServer()
+	s := newServer()
+	var server generated.ServerInterface = s
 
+	// Apply bearer token middleware for protected routes
+	e.Use(s.BearerTokenMiddlewareWithSkipper())
 	generated.RegisterHandlers(e, server)
 	e.Use(middleware.Logger())
 	e.Logger.Fatal(e.Start(":1323"))

@@ -1,0 +1,16 @@
+$kind: http-request
+description: Update user information (requires Authorization header with bearer token)
+url: "{{base_url}}/users/{{user_id}}"
+method: PUT
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{bearer_token}}
+body:
+  type: text
+  content: |-
+    {
+      "username": "john_doe_updated",
+      "email": "john_new@example.com",
+      "password": "NewSecurePassword123"
+    }
+order: 4000

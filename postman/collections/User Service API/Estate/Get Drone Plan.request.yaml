@@ -1,0 +1,12 @@
+$kind: http-request
+description: Get the total distance for drone survey plan of an estate (requires
+  authentication)
+url: "{{base_url}}/estate/{{estate_id}}/drone-plan"
+method: GET
+headers:
+  Authorization: Bearer {{bearer_token}}
+queryParams:
+  - key: distance
+    value: ""
+    disabled: true
+order: 4000

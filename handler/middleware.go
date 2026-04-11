@@ -77,3 +77,27 @@ func GetUserIDFromContext(c echo.Context) string {
 	}
 	return userID.(string)
 }
+
+// BearerTokenMiddlewareWithSkipper returns a middleware that skips auth for public routes
+func (s *Server) BearerTokenMiddlewareWithSkipper() echo.MiddlewareFunc {
+	return func(next echo.HandlerFunc) echo.HandlerFunc {
+		return func(c echo.Context) error {
+			// Skip auth for public endpoints
+			path := c.Path()
+			method := c.Request().Method
+
+			if method == "GET" && path == "/hello" {
+				return next(c)
+			}
+			if method == "POST" && path == "/login" {
+				return next(c)
+			}
+			if method == "POST" && path == "/users" {
+				return next(c)
+			}
+
+			// Apply bearer token validation for all other routes
+			return s.BearerTokenMiddleware(next)(c)
+		}
+	}
+}

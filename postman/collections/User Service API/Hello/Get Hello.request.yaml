@@ -1,0 +1,7 @@
+$kind: http-request
+description: Test endpoint that returns a hello message with the provided ID
+url: "{{base_url}}/hello?id=1"
+method: GET
+queryParams:
+  id: "1"
+order: 1000

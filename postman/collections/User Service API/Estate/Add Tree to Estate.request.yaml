@@ -1,0 +1,17 @@
+$kind: http-request
+description: Add a tree to an estate at specified coordinates with height
+  (requires authentication)
+url: "{{base_url}}/estate/{{estate_id}}/tree"
+method: POST
+headers:
+  Content-Type: application/json
+  Authorization: Bearer {{bearer_token}}
+body:
+  type: text
+  content: |-
+    {
+      "x": 10,
+      "y": 20,
+      "height": 15
+    }
+order: 2000

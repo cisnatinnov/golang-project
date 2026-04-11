@@ -1,0 +1,8 @@
+$kind: collection
+description: API collection for User Service - Go REST API backend with Bearer
+  Token Authentication
+variables:
+  base_url: http://localhost:8080
+  estate_id: ""
+  user_id: ""
+  bearer_token: ""

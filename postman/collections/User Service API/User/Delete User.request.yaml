@@ -1,0 +1,7 @@
+$kind: http-request
+description: Delete a user by ID (requires Authorization header with bearer token)
+url: "{{base_url}}/users/{{user_id}}"
+method: DELETE
+headers:
+  Authorization: Bearer {{bearer_token}}
+order: 5000
