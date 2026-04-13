@@ -17,9 +17,14 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-// Helper function to create bearer token from user ID
+// Helper function to create JWT bearer token for testing
 func createBearerToken(userID string) string {
-	return "placeholder_token_" + userID
+	// Use a test secret for JWT generation
+	token, err := GenerateToken(userID, "test-secret-key")
+	if err != nil {
+		panic("failed to generate test token: " + err.Error())
+	}
+	return token
 }
 
 func TestBearerTokenMiddleware(t *testing.T) {
@@ -27,7 +32,7 @@ func TestBearerTokenMiddleware(t *testing.T) {
 	defer ctrl.Finish()
 
 	mockRepo := repository.NewMockRepositoryInterface(ctrl)
-	server := &Server{Repository: mockRepo}
+	server := &Server{Repository: mockRepo, JWTSecret: "test-secret-key"}
 	e := echo.New()
 
 	// Test handler that just returns OK
@@ -37,14 +42,18 @@ func TestBearerTokenMiddleware(t *testing.T) {
 
 	t.Run("Valid Bearer Token", func(t *testing.T) {
 		userID := uuid.New().String()
-		token := createBearerToken(userID)
+		token, err := GenerateToken(userID, "test-secret-key")
+		if err != nil {
+			t.Fatalf("Failed to generate token: %v", err)
+		}
+
 		req := httptest.NewRequest(http.MethodGet, "/test", nil)
 		req.Header.Set("Authorization", "Bearer "+token)
 		rec := httptest.NewRecorder()
 		c := e.NewContext(req, rec)
 
 		handler := server.BearerTokenMiddleware(testHandler)
-		err := handler(c)
+		err = handler(c)
 
 		if assert.NoError(t, err) {
 			assert.Equal(t, userID, c.Get(ContextKeyUserID))
@@ -109,9 +118,9 @@ func TestPostEstate(t *testing.T) {
 
 	mockRepo := repository.NewMockRepositoryInterface(ctrl)
 	e := echo.New()
-	server := &Server{Repository: mockRepo}
+	server := &Server{Repository: mockRepo, JWTSecret: "test-secret-key"}
 	userID := uuid.New().String()
-	token := createBearerToken(userID)
+	token, _ := GenerateToken(userID, "test-secret-key")
 
 	t.Run("Success", func(t *testing.T) {
 		reqBody := `{"length": 10, "width": 5}`
@@ -165,11 +174,11 @@ func TestPostEstateIdTree(t *testing.T) {
 
 	mockRepo := repository.NewMockRepositoryInterface(ctrl)
 	e := echo.New()
-	server := &Server{Repository: mockRepo}
+	server := &Server{Repository: mockRepo, JWTSecret: "test-secret-key"}
 	estateIdRaw := uuid.New()
 	estateId := oapi_types.UUID(estateIdRaw)
 	userID := uuid.New().String()
-	token := createBearerToken(userID)
+	token, _ := GenerateToken(userID, "test-secret-key")
 
 	t.Run("Success", func(t *testing.T) {
 		reqBody := `{"x": 2, "y": 3, "height": 10}`
@@ -369,7 +378,10 @@ func TestPostLogin(t *testing.T) {
 			assert.Equal(t, http.StatusOK, rec.Code)
 			var resp generated.LoginResponse
 			assert.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
-			assert.Contains(t, resp.Token, "placeholder_token_")
+			// Validate JWT token can be parsed and contains correct user ID
+			extractedUserID, err := ValidateToken(resp.Token, server.JWTSecret)
+			assert.NoError(t, err)
+			assert.Equal(t, userId, extractedUserID)
 		}
 	})
 
@@ -390,7 +402,10 @@ func TestPostLogin(t *testing.T) {
 			assert.Equal(t, http.StatusOK, rec.Code)
 			var resp generated.LoginResponse
 			assert.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
-			assert.Contains(t, resp.Token, "placeholder_token_")
+			// Validate JWT token can be parsed and contains correct user ID
+			extractedUserID, err := ValidateToken(resp.Token, server.JWTSecret)
+			assert.NoError(t, err)
+			assert.Equal(t, userId, extractedUserID)
 		}
 	})
 

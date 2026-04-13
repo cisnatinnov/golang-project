@@ -234,8 +234,16 @@ func (s *Server) PostLogin(ctx echo.Context) error {
 		return ctx.JSON(http.StatusUnauthorized, generated.ErrorResponse{Message: "Invalid credentials"})
 	}
 
+	// Generate JWT token
+	token, err := GenerateToken(user.Id, s.JWTSecret)
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{
+			Message: "Failed to generate token: " + err.Error(),
+		})
+	}
+
 	return ctx.JSON(http.StatusOK, generated.LoginResponse{
-		Token: "placeholder_token_" + user.Id,
+		Token: token,
 	})
 }
 

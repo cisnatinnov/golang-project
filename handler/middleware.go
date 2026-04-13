@@ -13,7 +13,7 @@ const (
 	ContextKeyUserID = "user_id"
 )
 
-// BearerTokenMiddleware validates bearer token in Authorization header
+// BearerTokenMiddleware validates bearer token (JWT) in Authorization header
 func (s *Server) BearerTokenMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 	return func(c echo.Context) error {
 		// Get Authorization header
@@ -39,12 +39,11 @@ func (s *Server) BearerTokenMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 			})
 		}
 
-		// Extract user ID from token
-		// Token format: placeholder_token_{user_id}
-		userID := extractUserIDFromToken(token)
-		if userID == "" {
+		// Validate JWT token
+		userID, err := ValidateToken(token, s.JWTSecret)
+		if err != nil {
 			return c.JSON(http.StatusUnauthorized, generated.ErrorResponse{
-				Message: "Invalid token format",
+				Message: "Invalid or expired token: " + err.Error(),
 			})
 		}
 
@@ -55,19 +54,7 @@ func (s *Server) BearerTokenMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 	}
 }
 
-// extractUserIDFromToken extracts user ID from token
-// Token format: placeholder_token_{user_id}
-func extractUserIDFromToken(token string) string {
-	prefix := "placeholder_token_"
-	if !strings.HasPrefix(token, prefix) {
-		return ""
-	}
-	userID := strings.TrimPrefix(token, prefix)
-	if userID == "" {
-		return ""
-	}
-	return userID
-}
+
 
 // GetUserIDFromContext retrieves user ID from context
 func GetUserIDFromContext(c echo.Context) string {

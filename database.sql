@@ -5,8 +5,8 @@
 -- 3. How you name the fields.
 -- In this assignment we will use PostgreSQL as the database.
 
--- This is the estate table. Remove this table and replace with your own tables. 
-CREATE TABLE estate (
+-- This is the estate table. Remove this table and replace with your own tables.
+CREATE TABLE estates (
 	id UUID PRIMARY KEY,
 	length INT NOT NULL,
 	width INT NOT NULL,
@@ -14,7 +14,7 @@ CREATE TABLE estate (
 	updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
 );
 
-CREATE TABLE tree (
+CREATE TABLE trees (
 	id UUID PRIMARY KEY,
 	estate_id UUID NOT NULL,
 	x INT NOT NULL,
@@ -22,7 +22,7 @@ CREATE TABLE tree (
 	height INT NOT NULL,
 	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
-	FOREIGN KEY (estate_id) REFERENCES estate(id)
+	FOREIGN KEY (estate_id) REFERENCES estates(id)
 );
 
 CREATE TABLE users (

@@ -29,11 +29,19 @@ func main() {
 
 func newServer() *handler.Server {
 	dbDsn := os.Getenv("DATABASE_URL")
+	jwtSecret := os.Getenv("JWT_SECRET")
+
+	// Use a default secret if not provided (for development only)
+	if jwtSecret == "" {
+		jwtSecret = "your-secret-key-change-in-production"
+	}
+
 	var repo repository.RepositoryInterface = repository.NewRepository(repository.NewRepositoryOptions{
 		Dsn: dbDsn,
 	})
 	opts := handler.NewServerOptions{
 		Repository: repo,
+		JWTSecret:  jwtSecret,
 	}
 	return handler.NewServer(opts)
 }

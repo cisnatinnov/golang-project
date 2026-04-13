@@ -1,4 +1,5 @@
 $kind: collection
+name: User Service API
 description: API collection for User Service - Go REST API backend with Bearer
   Token Authentication
 variables:

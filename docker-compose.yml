@@ -5,6 +5,7 @@ services:
       - "8080:1323"
     environment:
       DATABASE_URL: postgres://postgres:postgres@db:5432/database?sslmode=disable
+      JWT_SECRET: your-secret-key-change-in-production
     depends_on:
       db:
         condition: service_healthy
