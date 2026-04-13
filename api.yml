@@ -466,7 +466,6 @@ components:
       required:
         - id
         - username
-        - email
       properties:
         id:
           type: string

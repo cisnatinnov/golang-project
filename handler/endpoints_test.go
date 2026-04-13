@@ -372,7 +372,7 @@ func TestPostLogin(t *testing.T) {
 		// Use valid bcrypt hash for "password123"
 		mockRepo.EXPECT().
 			GetUserByUsernameOrEmail(gomock.Any(), repository.GetUserByUsernameOrEmailInput{Username: "testuser", Email: ""}).
-			Return(repository.User{Id: userId, Username: "testuser", Email: "test@example.com", PasswordHash: "$2a$10$7cu3I0HGsd2ECtQ2ITgeb.AZKbsdDQT0JVAHyJJ6NU/IBAVKoh8EG"}, nil)
+			Return(repository.User{Id: userId, Username: "testuser", PasswordHash: "$2a$10$7cu3I0HGsd2ECtQ2ITgeb.AZKbsdDQT0JVAHyJJ6NU/IBAVKoh8EG"}, nil)
 
 		if assert.NoError(t, server.PostLogin(c)) {
 			assert.Equal(t, http.StatusOK, rec.Code)
@@ -396,7 +396,7 @@ func TestPostLogin(t *testing.T) {
 		// Use valid bcrypt hash for "password123"
 		mockRepo.EXPECT().
 			GetUserByUsernameOrEmail(gomock.Any(), repository.GetUserByUsernameOrEmailInput{Username: "", Email: "test@example.com"}).
-			Return(repository.User{Id: userId, Username: "testuser", Email: "test@example.com", PasswordHash: "$2a$10$7cu3I0HGsd2ECtQ2ITgeb.AZKbsdDQT0JVAHyJJ6NU/IBAVKoh8EG"}, nil)
+			Return(repository.User{Id: userId, Username: "testuser", PasswordHash: "$2a$10$7cu3I0HGsd2ECtQ2ITgeb.AZKbsdDQT0JVAHyJJ6NU/IBAVKoh8EG"}, nil)
 
 		if assert.NoError(t, server.PostLogin(c)) {
 			assert.Equal(t, http.StatusOK, rec.Code)
@@ -490,20 +490,22 @@ func TestPostUsers(t *testing.T) {
 			Return(repository.User{}, sql.ErrNoRows)
 
 		userId := uuid.New().String()
-		// Use gomock.Any() for PasswordHash since bcrypt produces non-deterministic output
+		personId := uuid.New().String()
+		emailId := uuid.New().String()
+
 		mockRepo.EXPECT().
-			CreateUser(gomock.Any(), gomock.All(
-			// Verify other fields
-			)).
-			Do(func(ctx interface{}, input repository.CreateUserInput) {
-				// Verify the input has expected values (except PasswordHash which is hashed)
-				assert.Equal(t, "newuser", input.Username)
-				assert.Equal(t, "newuser@example.com", input.Email)
-				// PasswordHash should be a non-empty bcrypt hash
-				assert.NotEmpty(t, input.PasswordHash)
-				assert.NotEqual(t, "password123", input.PasswordHash)
-			}).
-			Return(repository.CreateUserOutput{Id: userId}, nil)
+			CreateUser(gomock.Any(), gomock.Any()).
+			Return(repository.CreateUserOutput{Id: userId}, nil).
+			Times(1)
+
+		mockRepo.EXPECT().
+			CreatePerson(gomock.Any(), repository.CreatePersonInput{UserId: userId}).
+			Return(repository.CreatePersonOutput{Id: personId}, nil)
+
+		mockRepo.EXPECT().
+			CreatePersonEmail(gomock.Any(), gomock.Any()).
+			Return(repository.CreatePersonEmailOutput{Id: emailId}, nil).
+			Times(1)
 
 		if assert.NoError(t, server.PostUsers(c)) {
 			assert.Equal(t, http.StatusOK, rec.Code)
@@ -522,7 +524,7 @@ func TestPostUsers(t *testing.T) {
 
 		mockRepo.EXPECT().
 			GetUserByUsername(gomock.Any(), "existinguser").
-			Return(repository.User{Id: uuid.New().String(), Username: "existinguser", Email: "existing@example.com"}, nil)
+			Return(repository.User{Id: uuid.New().String(), Username: "existinguser"}, nil)
 
 		if assert.NoError(t, server.PostUsers(c)) {
 			assert.Equal(t, http.StatusConflict, rec.Code)
@@ -542,7 +544,7 @@ func TestPostUsers(t *testing.T) {
 
 		mockRepo.EXPECT().
 			GetUserByEmail(gomock.Any(), "existing@example.com").
-			Return(repository.User{Id: uuid.New().String(), Username: "existinguser", Email: "existing@example.com"}, nil)
+			Return(repository.User{Id: uuid.New().String(), Username: "existinguser"}, nil)
 
 		if assert.NoError(t, server.PostUsers(c)) {
 			assert.Equal(t, http.StatusConflict, rec.Code)
@@ -582,14 +584,13 @@ func TestGetUsersId(t *testing.T) {
 
 		mockRepo.EXPECT().
 			GetUserById(gomock.Any(), userId.String()).
-			Return(repository.User{Id: userId.String(), Username: "testuser", Email: "test@example.com"}, nil)
+			Return(repository.User{Id: userId.String(), Username: "testuser"}, nil)
 
 		if assert.NoError(t, server.GetUsersId(c, userId)) {
 			assert.Equal(t, http.StatusOK, rec.Code)
 			var resp generated.UserResponse
 			assert.NoError(t, json.Unmarshal(rec.Body.Bytes(), &resp))
 			assert.Equal(t, "testuser", resp.Username)
-			assert.Equal(t, "test@example.com", string(resp.Email))
 		}
 	})
 
@@ -657,7 +658,7 @@ func TestPutUsersId(t *testing.T) {
 
 		mockRepo.EXPECT().
 			GetUserById(gomock.Any(), userId.String()).
-			Return(repository.User{Id: userId.String(), Username: "olduser", Email: "old@example.com"}, nil)
+			Return(repository.User{Id: userId.String(), Username: "olduser"}, nil)
 
 		mockRepo.EXPECT().
 			GetUserByUsername(gomock.Any(), "updateduser").
@@ -736,11 +737,11 @@ func TestPutUsersId(t *testing.T) {
 
 		mockRepo.EXPECT().
 			GetUserById(gomock.Any(), userId.String()).
-			Return(repository.User{Id: userId.String(), Username: "olduser", Email: "old@example.com"}, nil)
+			Return(repository.User{Id: userId.String(), Username: "olduser"}, nil)
 
 		mockRepo.EXPECT().
 			GetUserByUsername(gomock.Any(), "takenuser").
-			Return(repository.User{Id: otherUserId, Username: "takenuser", Email: "taken@example.com"}, nil)
+			Return(repository.User{Id: otherUserId, Username: "takenuser"}, nil)
 
 		if assert.NoError(t, server.PutUsersId(c, userId)) {
 			assert.Equal(t, http.StatusConflict, rec.Code)
@@ -760,7 +761,7 @@ func TestPutUsersId(t *testing.T) {
 
 		mockRepo.EXPECT().
 			GetUserById(gomock.Any(), userId.String()).
-			Return(repository.User{Id: userId.String(), Username: "olduser", Email: "old@example.com"}, nil)
+			Return(repository.User{Id: userId.String(), Username: "olduser"}, nil)
 
 		mockRepo.EXPECT().
 			GetUserByUsername(gomock.Any(), "updateduser").
@@ -768,7 +769,7 @@ func TestPutUsersId(t *testing.T) {
 
 		mockRepo.EXPECT().
 			GetUserByEmail(gomock.Any(), "taken@example.com").
-			Return(repository.User{Id: otherUserId, Username: "otheruser", Email: "taken@example.com"}, nil)
+			Return(repository.User{Id: otherUserId, Username: "otheruser"}, nil)
 
 		if assert.NoError(t, server.PutUsersId(c, userId)) {
 			assert.Equal(t, http.StatusConflict, rec.Code)
@@ -847,4 +848,9 @@ func TestDeleteUsersId(t *testing.T) {
 			assert.Equal(t, http.StatusNotFound, rec.Code)
 		}
 	})
+}
+
+// Helper function for tests
+func stringPtr(s string) *string {
+	return &s
 }

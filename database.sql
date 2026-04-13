@@ -28,8 +28,57 @@ CREATE TABLE trees (
 CREATE TABLE users (
 	id UUID PRIMARY KEY,
 	username VARCHAR(255) UNIQUE NOT NULL,
-	email VARCHAR(255) UNIQUE NOT NULL,
 	password_hash VARCHAR(255) NOT NULL,
 	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
 	updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP
+);
+
+CREATE TABLE person (
+	id UUID PRIMARY KEY,
+	user_id UUID NOT NULL UNIQUE,
+	first_name VARCHAR(255),
+	last_name VARCHAR(255),
+	date_of_birth DATE,
+	bio TEXT,
+	avatar_url VARCHAR(500),
+	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+);
+
+CREATE TABLE person_email (
+	id UUID PRIMARY KEY,
+	user_id UUID NOT NULL,
+	email VARCHAR(255) NOT NULL,
+	is_primary BOOLEAN DEFAULT false,
+	verified BOOLEAN DEFAULT false,
+	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+	UNIQUE(user_id, email)
+);
+
+CREATE TABLE person_phone (
+	id UUID PRIMARY KEY,
+	user_id UUID NOT NULL,
+	phone VARCHAR(20) NOT NULL,
+	type VARCHAR(50), -- 'mobile', 'home', 'work'
+	is_primary BOOLEAN DEFAULT false,
+	verified BOOLEAN DEFAULT false,
+	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+	UNIQUE(user_id, phone)
+);
+
+CREATE TABLE person_social_media (
+	id UUID PRIMARY KEY,
+	user_id UUID NOT NULL,
+	platform VARCHAR(100) NOT NULL, -- 'twitter', 'linkedin', 'github', etc.
+	username VARCHAR(255),
+	profile_url VARCHAR(500),
+	created_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	updated_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
+	UNIQUE(user_id, platform)
 );

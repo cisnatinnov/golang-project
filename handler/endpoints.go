@@ -279,16 +279,39 @@ func (s *Server) PostUsers(ctx echo.Context) error {
 		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: "Failed to hash password"})
 	}
 
-	out, err := s.Repository.CreateUser(ctx.Request().Context(), repository.CreateUserInput{
+	// Create user
+	outUser, err := s.Repository.CreateUser(ctx.Request().Context(), repository.CreateUserInput{
 		Username:     req.Username,
-		Email:        string(req.Email),
 		PasswordHash: hashedPassword,
 	})
 	if err != nil {
 		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: err.Error()})
 	}
 
-	parsedId, _ := uuid.Parse(out.Id)
+	// Create person profile
+	personOut, err := s.Repository.CreatePerson(ctx.Request().Context(), repository.CreatePersonInput{
+		UserId: outUser.Id,
+	})
+	if err != nil {
+		// Rollback user creation if person creation fails
+		_ = s.Repository.DeleteUser(ctx.Request().Context(), outUser.Id)
+		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: err.Error()})
+	}
+
+	// Add email to person profile
+	_, err = s.Repository.CreatePersonEmail(ctx.Request().Context(), repository.CreatePersonEmailInput{
+		UserId:    outUser.Id,
+		Email:     string(req.Email),
+		IsPrimary: true,
+	})
+	if err != nil {
+		// Rollback if email creation fails
+		_ = s.Repository.DeletePerson(ctx.Request().Context(), personOut.Id)
+		_ = s.Repository.DeleteUser(ctx.Request().Context(), outUser.Id)
+		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: err.Error()})
+	}
+
+	parsedId, _ := uuid.Parse(outUser.Id)
 	return ctx.JSON(http.StatusOK, generated.CreateUserResponse{
 		Id: parsedId,
 	})
@@ -317,7 +340,6 @@ func (s *Server) GetUsersId(ctx echo.Context, id oapi_types.UUID) error {
 	return ctx.JSON(http.StatusOK, generated.UserResponse{
 		Id:       parsedId,
 		Username: user.Username,
-		Email:    oapi_types.Email(user.Email),
 	})
 }
 
@@ -360,16 +382,6 @@ func (s *Server) PutUsersId(ctx echo.Context, id oapi_types.UUID) error {
 		}
 	}
 
-	// Check if new email already exists (if changed)
-	if string(req.Email) != currentUser.Email {
-		_, err := s.Repository.GetUserByEmail(ctx.Request().Context(), string(req.Email))
-		if err == nil {
-			return ctx.JSON(http.StatusConflict, generated.ErrorResponse{Message: "Email already exists"})
-		} else if err != sql.ErrNoRows {
-			return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: err.Error()})
-		}
-	}
-
 	// Hash password
 	hashedPassword, err := repository.HashPassword(req.Password)
 	if err != nil {
@@ -379,7 +391,6 @@ func (s *Server) PutUsersId(ctx echo.Context, id oapi_types.UUID) error {
 	err = s.Repository.UpdateUser(ctx.Request().Context(), repository.UpdateUserInput{
 		Id:           id.String(),
 		Username:     req.Username,
-		Email:        string(req.Email),
 		PasswordHash: hashedPassword,
 	})
 	if err != nil {
