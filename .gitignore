@@ -1,32 +1,75 @@
-# If you prefer the allow list template instead of the deny list, see community template:
-# https://github.com/github/gitignore/blob/main/community/Golang/Go.AllowList.gitignore
-#
-# Binaries for programs and plugins
-*.exe
-*.exe~
-*.dll
+```
+# Go build artifacts
+*.o
+*.a
 *.so
-*.dylib
-.env
-*.log
-*.txt
-CLAUDE.md
-
-build
-
-# Test binary, built with `go test -c`
+*.exe
+*.out
 *.test
 
-# Output of the go coverage tool, specifically when used with LiteIDE
-*.out
-coverage.html
-
-# Dependency directories (remove the comment below to include it)
+# Go cache and modules
+go.mod.lock
+go.sum.lock
 vendor/
 
-# Go workspace file
-go.work
+# Dependencies
+node_modules/
+**/node_modules/
 
-generated
+# Build directories
+build/
+dist/
+target/
 
-.vscode
+# Logs
+*.log
+
+# Environment variables
+.env
+.env.local
+*.env.*
+
+# IDE and editor files
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+Thumbs.db
+
+# Coverage
+coverage/
+htmlcov/
+.coverage
+
+# Temporary files
+*.tmp
+*.temp
+*.bak
+*.backup
+
+# Compressed files
+*.zip
+*.gz
+*.tar
+*.tgz
+*.bz2
+*.xz
+*.7z
+*.rar
+*.zst
+*.lz4
+*.lzh
+*.cab
+*.arj
+*.rpm
+*.deb
+*.Z
+*.lz
+*.lzo
+*.tar.gz
+*.tar.bz2
+*.tar.xz
+*.tar.zst
+```

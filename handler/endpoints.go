@@ -2,6 +2,7 @@ package handler
 
 import (
 	"database/sql"
+	"errors"
 	"fmt"
 	"math"
 	"net/http"
@@ -12,6 +13,13 @@ import (
 	"github.com/SawitProRecruitment/UserService/generated"
 	"github.com/SawitProRecruitment/UserService/repository"
 	"github.com/labstack/echo/v4"
+)
+
+const (
+	// MaxEstateDimension is the maximum allowed dimension for an estate
+	MaxEstateDimension = 10000
+	// MaxTreeHeight is the maximum allowed height for a tree
+	MaxTreeHeight = 1000
 )
 
 func (s *Server) PostEstate(ctx echo.Context) error {
@@ -26,8 +34,12 @@ func (s *Server) PostEstate(ctx echo.Context) error {
 		return ctx.JSON(http.StatusBadRequest, generated.ErrorResponse{Message: "Invalid request body"})
 	}
 
+	// Validate dimensions
 	if req.Length < 1 || req.Width < 1 {
 		return ctx.JSON(http.StatusBadRequest, generated.ErrorResponse{Message: "Dimensions must be strictly positive"})
+	}
+	if req.Length > MaxEstateDimension || req.Width > MaxEstateDimension {
+		return ctx.JSON(http.StatusBadRequest, generated.ErrorResponse{Message: fmt.Sprintf("Dimensions cannot exceed %d", MaxEstateDimension)})
 	}
 
 	out, err := s.Repository.CreateEstate(ctx.Request().Context(), repository.CreateEstateInput{
@@ -35,11 +47,15 @@ func (s *Server) PostEstate(ctx echo.Context) error {
 		Width:  req.Width,
 	})
 	if err != nil {
-		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: err.Error()})
+		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: "Failed to create estate"})
 	}
 
 	// UUID conversion
-	parsedId, _ := uuid.Parse(out.Id)
+	parsedId, err := uuid.Parse(out.Id)
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: "Invalid estate ID format"})
+	}
+
 	return ctx.JSON(http.StatusOK, generated.CreateEstateResponse{
 		Id: parsedId,
 	})
@@ -58,10 +74,10 @@ func (s *Server) PostEstateIdTree(ctx echo.Context, id oapi_types.UUID) error {
 	}
 
 	estate, err := s.Repository.GetEstateById(ctx.Request().Context(), id.String())
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return ctx.JSON(http.StatusNotFound, generated.ErrorResponse{Message: "Estate not found"})
 	} else if err != nil {
-		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: err.Error()})
+		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: "Failed to retrieve estate"})
 	}
 
 	// Based on test semantics: X goes up to Length, Y goes up to Width
@@ -69,8 +85,8 @@ func (s *Server) PostEstateIdTree(ctx echo.Context, id oapi_types.UUID) error {
 		return ctx.JSON(http.StatusBadRequest, generated.ErrorResponse{Message: "Tree coordinate out of bounds"})
 	}
 
-	if req.Height < 1 {
-		return ctx.JSON(http.StatusBadRequest, generated.ErrorResponse{Message: "Tree height must be positive"})
+	if req.Height < 1 || req.Height > MaxTreeHeight {
+		return ctx.JSON(http.StatusBadRequest, generated.ErrorResponse{Message: fmt.Sprintf("Tree height must be between 1 and %d", MaxTreeHeight)})
 	}
 
 	out, err := s.Repository.CreateTree(ctx.Request().Context(), repository.CreateTreeInput{
@@ -80,10 +96,14 @@ func (s *Server) PostEstateIdTree(ctx echo.Context, id oapi_types.UUID) error {
 		Height:   req.Height,
 	})
 	if err != nil {
-		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: err.Error()})
+		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: "Failed to create tree"})
 	}
 
-	parsedId, _ := uuid.Parse(out.Id)
+	parsedId, err := uuid.Parse(out.Id)
+	if err != nil {
+		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: "Invalid tree ID format"})
+	}
+
 	return ctx.JSON(http.StatusOK, generated.AddTreeResponse{
 		Id: parsedId,
 	})
@@ -98,17 +118,17 @@ func (s *Server) GetEstateIdStats(ctx echo.Context, id oapi_types.UUID) error {
 
 	// check if estate exists
 	_, err := s.Repository.GetEstateById(ctx.Request().Context(), id.String())
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return ctx.JSON(http.StatusNotFound, generated.ErrorResponse{Message: "Estate not found"})
 	} else if err != nil {
-		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: err.Error()})
+		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: "Failed to retrieve estate"})
 	}
 
 	stats, err := s.Repository.GetEstateStats(ctx.Request().Context(), repository.GetEstateStatsInput{
 		EstateId: id.String(),
 	})
 	if err != nil {
-		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: err.Error()})
+		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: "Failed to retrieve estate stats"})
 	}
 
 	return ctx.JSON(http.StatusOK, generated.EstateStatsResponse{
@@ -127,21 +147,21 @@ func (s *Server) GetEstateIdDronePlan(ctx echo.Context, id oapi_types.UUID, para
 	}
 
 	estate, err := s.Repository.GetEstateById(ctx.Request().Context(), id.String())
-	if err == sql.ErrNoRows {
+	if errors.Is(err, sql.ErrNoRows) {
 		return ctx.JSON(http.StatusNotFound, generated.ErrorResponse{Message: "Estate not found"})
 	} else if err != nil {
-		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: err.Error()})
+		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: "Failed to retrieve estate"})
 	}
 
 	treesOut, err := s.Repository.GetTreesByEstateId(ctx.Request().Context(), repository.GetTreesByEstateIdInput{
 		EstateId: id.String(),
 	})
 	if err != nil {
-		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: err.Error()})
+		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: "Failed to retrieve trees"})
 	}
 
 	// Map tree coordinates to heights
-	treeMap := make(map[string]int)
+	treeMap := make(map[string]int, len(treesOut.Trees))
 	for _, t := range treesOut.Trees {
 		key := fmt.Sprintf("%d,%d", t.X, t.Y)
 		treeMap[key] = t.Height
