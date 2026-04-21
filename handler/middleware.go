@@ -28,7 +28,7 @@ func (s *Server) BearerTokenMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 		parts := strings.Split(authHeader, " ")
 		if len(parts) != 2 || strings.ToLower(parts[0]) != "bearer" {
 			return c.JSON(http.StatusUnauthorized, generated.ErrorResponse{
-				Message: "Invalid authorization header format",
+				Message: "Invalid authorization header format. Expected: Bearer <token>",
 			})
 		}
 
@@ -43,7 +43,7 @@ func (s *Server) BearerTokenMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 		userID, err := ValidateToken(token, s.JWTSecret)
 		if err != nil {
 			return c.JSON(http.StatusUnauthorized, generated.ErrorResponse{
-				Message: "Invalid or expired token: " + err.Error(),
+				Message: "Invalid or expired token",
 			})
 		}
 
@@ -54,15 +54,17 @@ func (s *Server) BearerTokenMiddleware(next echo.HandlerFunc) echo.HandlerFunc {
 	}
 }
 
-
-
 // GetUserIDFromContext retrieves user ID from context
 func GetUserIDFromContext(c echo.Context) string {
 	userID := c.Get(ContextKeyUserID)
 	if userID == nil {
 		return ""
 	}
-	return userID.(string)
+	userIDStr, ok := userID.(string)
+	if !ok {
+		return ""
+	}
+	return userIDStr
 }
 
 // BearerTokenMiddlewareWithSkipper returns a middleware that skips auth for public routes
@@ -73,13 +75,11 @@ func (s *Server) BearerTokenMiddlewareWithSkipper() echo.MiddlewareFunc {
 			path := c.Path()
 			method := c.Request().Method
 
-			if method == "GET" && path == "/hello" {
-				return next(c)
-			}
-			if method == "POST" && path == "/login" {
-				return next(c)
-			}
-			if method == "POST" && path == "/users" {
+			isPublicRoute := (method == "GET" && path == "/hello") ||
+				(method == "POST" && path == "/login") ||
+				(method == "POST" && path == "/users")
+
+			if isPublicRoute {
 				return next(c)
 			}
 

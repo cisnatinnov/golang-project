@@ -7,6 +7,13 @@ import (
 	jwt "github.com/golang-jwt/jwt/v4"
 )
 
+const (
+	// TokenExpirationTime is the duration for which JWT tokens are valid
+	TokenExpirationTime = 24 * time.Hour
+	// MinSecretKeyLength is the minimum length for a secure JWT secret
+	MinSecretKeyLength = 32
+)
+
 // Claims represents the JWT claims
 type Claims struct {
 	UserID string `json:"user_id"`
@@ -15,8 +22,12 @@ type Claims struct {
 
 // GenerateToken generates a JWT token for the user
 func GenerateToken(userID string, secret string) (string, error) {
+	if len(secret) < MinSecretKeyLength {
+		return "", fmt.Errorf("secret key must be at least %d characters", MinSecretKeyLength)
+	}
+
 	issuedAt := time.Now()
-	expiresAt := issuedAt.Add(24 * time.Hour) // Token valid for 24 hours
+	expiresAt := issuedAt.Add(TokenExpirationTime)
 
 	claims := &Claims{
 		UserID: userID,
@@ -24,6 +35,7 @@ func GenerateToken(userID string, secret string) (string, error) {
 			IssuedAt:  jwt.NewNumericDate(issuedAt),
 			ExpiresAt: jwt.NewNumericDate(expiresAt),
 			Subject:   userID,
+			Issuer:    "UserService",
 		},
 	}
 
