@@ -1,11 +1,10 @@
 module github.com/SawitProRecruitment/UserService
 
-go 1.19
+go 1.23.0
 
 require (
 	github.com/getkin/kin-openapi v0.117.0
 	github.com/golang-jwt/jwt/v4 v4.5.2
-	github.com/golang-migrate/migrate/v4 v4.16.2
 	github.com/golang/mock v1.6.0
 	github.com/google/uuid v1.6.0
 	github.com/labstack/echo/v4 v4.11.3

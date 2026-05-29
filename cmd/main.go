@@ -42,9 +42,12 @@ func main() {
 	s := newServer()
 	var server generated.ServerInterface = s
 
-	// Apply bearer token middleware for protected routes
-	e.Use(s.BearerTokenMiddlewareWithSkipper())
+	// Register handlers first, then apply bearer token middleware
 	generated.RegisterHandlers(e, server)
+
+	// Apply bearer token middleware for protected routes
+	// Registering handlers first ensures middleware can inspect the route path
+	e.Use(s.BearerTokenMiddlewareWithSkipper())
 
 	// Start server in a goroutine
 	go func() {
