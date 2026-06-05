@@ -15,6 +15,13 @@ import (
 	"github.com/labstack/echo/v4"
 )
 
+// logResponse logs an HTTP response with method, path, user and message.
+func logResponse(ctx echo.Context, status int, msg string) {
+	user := GetUserIDFromContext(ctx)
+	// Use Printf which is always available on Echo's logger
+	ctx.Logger().Printf("status=%d method=%s path=%s user=%s msg=%s", status, ctx.Request().Method, ctx.Request().URL.Path, user, msg)
+}
+
 const (
 	// MaxEstateDimension is the maximum allowed dimension for an estate
 	MaxEstateDimension = 10000
@@ -23,20 +30,28 @@ const (
 )
 
 func (s *Server) PostEstate(ctx echo.Context) error {
-	// Authenticated user ID is optional for creating estates in tests
-	_ = GetUserIDFromContext(ctx)
+	// Require authenticated user for creating estates
+	authUserID := GetUserIDFromContext(ctx)
+	if authUserID == "" {
+		logResponse(ctx, http.StatusUnauthorized, "unauthorized")
+		return ctx.JSON(http.StatusUnauthorized, generated.ErrorResponse{Message: "Unauthorized"})
+	}
 
 	var req generated.CreateEstateRequest
 	if err := ctx.Bind(&req); err != nil {
+		logResponse(ctx, http.StatusBadRequest, "Invalid request body")
 		return ctx.JSON(http.StatusBadRequest, generated.ErrorResponse{Message: "Invalid request body"})
 	}
 
 	// Validate dimensions
 	if req.Length < 1 || req.Width < 1 {
+		logResponse(ctx, http.StatusBadRequest, "Dimensions must be strictly positive")
 		return ctx.JSON(http.StatusBadRequest, generated.ErrorResponse{Message: "Dimensions must be strictly positive"})
 	}
 	if req.Length > MaxEstateDimension || req.Width > MaxEstateDimension {
-		return ctx.JSON(http.StatusBadRequest, generated.ErrorResponse{Message: fmt.Sprintf("Dimensions cannot exceed %d", MaxEstateDimension)})
+		msg := fmt.Sprintf("Dimensions cannot exceed %d", MaxEstateDimension)
+		logResponse(ctx, http.StatusBadRequest, msg)
+		return ctx.JSON(http.StatusBadRequest, generated.ErrorResponse{Message: msg})
 	}
 
 	out, err := s.Repository.CreateEstate(ctx.Request().Context(), repository.CreateEstateInput{
@@ -44,43 +59,56 @@ func (s *Server) PostEstate(ctx echo.Context) error {
 		Width:  req.Width,
 	})
 	if err != nil {
+		logResponse(ctx, http.StatusInternalServerError, "Failed to create estate")
 		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: "Failed to create estate"})
 	}
 
 	// UUID conversion
 	parsedId, err := uuid.Parse(out.Id)
 	if err != nil {
+		logResponse(ctx, http.StatusInternalServerError, "Invalid estate ID format")
 		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: "Invalid estate ID format"})
 	}
 
+	logResponse(ctx, http.StatusOK, "estate created")
 	return ctx.JSON(http.StatusOK, generated.CreateEstateResponse{
 		Id: parsedId,
 	})
 }
 
 func (s *Server) PostEstateIdTree(ctx echo.Context, id oapi_types.UUID) error {
-	// Authenticated user ID is optional for adding trees in tests
-	_ = GetUserIDFromContext(ctx)
+	// Require authenticated user for adding trees
+	authUserID := GetUserIDFromContext(ctx)
+	if authUserID == "" {
+		logResponse(ctx, http.StatusUnauthorized, "unauthorized")
+		return ctx.JSON(http.StatusUnauthorized, generated.ErrorResponse{Message: "Unauthorized"})
+	}
 
 	var req generated.AddTreeRequest
 	if err := ctx.Bind(&req); err != nil {
+		logResponse(ctx, http.StatusBadRequest, "Invalid request body")
 		return ctx.JSON(http.StatusBadRequest, generated.ErrorResponse{Message: "Invalid request body"})
 	}
 
 	estate, err := s.Repository.GetEstateById(ctx.Request().Context(), id.String())
 	if errors.Is(err, sql.ErrNoRows) {
+		logResponse(ctx, http.StatusNotFound, "estate not found")
 		return ctx.JSON(http.StatusNotFound, generated.ErrorResponse{Message: "Estate not found"})
 	} else if err != nil {
+		logResponse(ctx, http.StatusInternalServerError, "Failed to retrieve estate")
 		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: "Failed to retrieve estate"})
 	}
 
 	// Based on test semantics: X goes up to Length, Y goes up to Width
 	if req.X < 1 || req.X > estate.Length || req.Y < 1 || req.Y > estate.Width {
+		logResponse(ctx, http.StatusBadRequest, "Tree coordinate out of bounds")
 		return ctx.JSON(http.StatusBadRequest, generated.ErrorResponse{Message: "Tree coordinate out of bounds"})
 	}
 
 	if req.Height < 1 || req.Height > MaxTreeHeight {
-		return ctx.JSON(http.StatusBadRequest, generated.ErrorResponse{Message: fmt.Sprintf("Tree height must be between 1 and %d", MaxTreeHeight)})
+		msg := fmt.Sprintf("Tree height must be between 1 and %d", MaxTreeHeight)
+		logResponse(ctx, http.StatusBadRequest, msg)
+		return ctx.JSON(http.StatusBadRequest, generated.ErrorResponse{Message: msg})
 	}
 
 	out, err := s.Repository.CreateTree(ctx.Request().Context(), repository.CreateTreeInput{
@@ -90,28 +118,37 @@ func (s *Server) PostEstateIdTree(ctx echo.Context, id oapi_types.UUID) error {
 		Height:   req.Height,
 	})
 	if err != nil {
+		logResponse(ctx, http.StatusInternalServerError, "Failed to create tree")
 		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: "Failed to create tree"})
 	}
 
 	parsedId, err := uuid.Parse(out.Id)
 	if err != nil {
+		logResponse(ctx, http.StatusInternalServerError, "Invalid tree ID format")
 		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: "Invalid tree ID format"})
 	}
 
+	logResponse(ctx, http.StatusOK, "tree created")
 	return ctx.JSON(http.StatusOK, generated.AddTreeResponse{
 		Id: parsedId,
 	})
 }
 
 func (s *Server) GetEstateIdStats(ctx echo.Context, id oapi_types.UUID) error {
-	// Authenticated user ID is optional for fetching stats in tests
-	_ = GetUserIDFromContext(ctx)
+	// Require authenticated user for fetching stats
+	authUserID := GetUserIDFromContext(ctx)
+	if authUserID == "" {
+		logResponse(ctx, http.StatusUnauthorized, "unauthorized")
+		return ctx.JSON(http.StatusUnauthorized, generated.ErrorResponse{Message: "Unauthorized"})
+	}
 
 	// check if estate exists
 	_, err := s.Repository.GetEstateById(ctx.Request().Context(), id.String())
 	if errors.Is(err, sql.ErrNoRows) {
+		logResponse(ctx, http.StatusNotFound, "estate not found")
 		return ctx.JSON(http.StatusNotFound, generated.ErrorResponse{Message: "Estate not found"})
 	} else if err != nil {
+		logResponse(ctx, http.StatusInternalServerError, "Failed to retrieve estate")
 		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: "Failed to retrieve estate"})
 	}
 
@@ -119,9 +156,11 @@ func (s *Server) GetEstateIdStats(ctx echo.Context, id oapi_types.UUID) error {
 		EstateId: id.String(),
 	})
 	if err != nil {
+		logResponse(ctx, http.StatusInternalServerError, "Failed to retrieve estate stats")
 		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: "Failed to retrieve estate stats"})
 	}
 
+	logResponse(ctx, http.StatusOK, "estate stats retrieved")
 	return ctx.JSON(http.StatusOK, generated.EstateStatsResponse{
 		Count:  stats.Count,
 		Max:    stats.Max,
@@ -131,13 +170,19 @@ func (s *Server) GetEstateIdStats(ctx echo.Context, id oapi_types.UUID) error {
 }
 
 func (s *Server) GetEstateIdDronePlan(ctx echo.Context, id oapi_types.UUID, params generated.GetEstateIdDronePlanParams) error {
-	// Authenticated user ID is optional for drone plan in tests
-	_ = GetUserIDFromContext(ctx)
+	// Require authenticated user for drone plan
+	authUserID := GetUserIDFromContext(ctx)
+	if authUserID == "" {
+		logResponse(ctx, http.StatusUnauthorized, "unauthorized")
+		return ctx.JSON(http.StatusUnauthorized, generated.ErrorResponse{Message: "Unauthorized"})
+	}
 
 	estate, err := s.Repository.GetEstateById(ctx.Request().Context(), id.String())
 	if errors.Is(err, sql.ErrNoRows) {
+		logResponse(ctx, http.StatusNotFound, "estate not found")
 		return ctx.JSON(http.StatusNotFound, generated.ErrorResponse{Message: "Estate not found"})
 	} else if err != nil {
+		logResponse(ctx, http.StatusInternalServerError, "Failed to retrieve estate")
 		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: "Failed to retrieve estate"})
 	}
 
@@ -145,6 +190,7 @@ func (s *Server) GetEstateIdDronePlan(ctx echo.Context, id oapi_types.UUID, para
 		EstateId: id.String(),
 	})
 	if err != nil {
+		logResponse(ctx, http.StatusInternalServerError, "Failed to retrieve trees")
 		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: "Failed to retrieve trees"})
 	}
 
@@ -188,6 +234,7 @@ func (s *Server) GetEstateIdDronePlan(ctx echo.Context, id oapi_types.UUID, para
 
 	totalDist := horizontalDistance + verticalDistance
 
+	logResponse(ctx, http.StatusOK, "drone plan calculated")
 	return ctx.JSON(http.StatusOK, generated.DronePlanResponse{
 		Distance: totalDist,
 	})
@@ -195,23 +242,34 @@ func (s *Server) GetEstateIdDronePlan(ctx echo.Context, id oapi_types.UUID, para
 
 // GetHello implements the test endpoint
 func (s *Server) GetHello(ctx echo.Context, params generated.GetHelloParams) error {
+	// Require authenticated user for hello endpoint
+	authUserID := GetUserIDFromContext(ctx)
+	if authUserID == "" {
+		logResponse(ctx, http.StatusUnauthorized, "unauthorized")
+		return ctx.JSON(http.StatusUnauthorized, generated.ErrorResponse{Message: "Unauthorized"})
+	}
+
 	var resp generated.HelloResponse
 	resp.Message = fmt.Sprintf("Hello User %d", params.Id)
+	logResponse(ctx, http.StatusOK, "hello returned")
 	return ctx.JSON(http.StatusOK, resp)
 }
 
 func (s *Server) PostLogin(ctx echo.Context) error {
 	var req generated.LoginRequest
 	if err := ctx.Bind(&req); err != nil {
+		logResponse(ctx, http.StatusBadRequest, "Invalid request body")
 		return ctx.JSON(http.StatusBadRequest, generated.ErrorResponse{Message: "Invalid request body"})
 	}
 
 	if req.Password == "" {
+		logResponse(ctx, http.StatusBadRequest, "Password is required")
 		return ctx.JSON(http.StatusBadRequest, generated.ErrorResponse{Message: "Password is required"})
 	}
 
 	// Require either username or email
 	if (req.Username == nil || *req.Username == "") && (req.Email == nil || string(*req.Email) == "") {
+		logResponse(ctx, http.StatusBadRequest, "Username or email is required")
 		return ctx.JSON(http.StatusBadRequest, generated.ErrorResponse{Message: "Username or email is required"})
 	}
 
@@ -231,25 +289,30 @@ func (s *Server) PostLogin(ctx echo.Context) error {
 	})
 
 	if err == sql.ErrNoRows {
+		logResponse(ctx, http.StatusUnauthorized, "invalid credentials")
 		return ctx.JSON(http.StatusUnauthorized, generated.ErrorResponse{Message: "Invalid credentials"})
 	} else if err != nil {
+		logResponse(ctx, http.StatusInternalServerError, err.Error())
 		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: err.Error()})
 	}
 
 	// Verify password
 	err = repository.VerifyPassword(user.PasswordHash, req.Password)
 	if err != nil {
+		logResponse(ctx, http.StatusUnauthorized, "invalid credentials")
 		return ctx.JSON(http.StatusUnauthorized, generated.ErrorResponse{Message: "Invalid credentials"})
 	}
 
 	// Generate JWT token
 	token, err := GenerateToken(user.Id, s.JWTSecret)
 	if err != nil {
+		logResponse(ctx, http.StatusInternalServerError, "Failed to generate token: "+err.Error())
 		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{
 			Message: "Failed to generate token: " + err.Error(),
 		})
 	}
 
+	logResponse(ctx, http.StatusOK, "login successful")
 	return ctx.JSON(http.StatusOK, generated.LoginResponse{
 		Token: token,
 	})
@@ -258,32 +321,39 @@ func (s *Server) PostLogin(ctx echo.Context) error {
 func (s *Server) PostUsers(ctx echo.Context) error {
 	var req generated.CreateUserRequest
 	if err := ctx.Bind(&req); err != nil {
+		logResponse(ctx, http.StatusBadRequest, "Invalid request body")
 		return ctx.JSON(http.StatusBadRequest, generated.ErrorResponse{Message: "Invalid request body"})
 	}
 
 	if req.Username == "" || string(req.Email) == "" || req.Password == "" {
+		logResponse(ctx, http.StatusBadRequest, "Username, email, and password are required")
 		return ctx.JSON(http.StatusBadRequest, generated.ErrorResponse{Message: "Username, email, and password are required"})
 	}
 
 	// Check if username already exists
 	_, err := s.Repository.GetUserByUsername(ctx.Request().Context(), req.Username)
 	if err == nil {
+		logResponse(ctx, http.StatusConflict, "Username already exists")
 		return ctx.JSON(http.StatusConflict, generated.ErrorResponse{Message: "Username already exists"})
 	} else if err != sql.ErrNoRows {
+		logResponse(ctx, http.StatusInternalServerError, err.Error())
 		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: err.Error()})
 	}
 
 	// Check if email already exists
 	_, err = s.Repository.GetUserByEmail(ctx.Request().Context(), string(req.Email))
 	if err == nil {
+		logResponse(ctx, http.StatusConflict, "Email already exists")
 		return ctx.JSON(http.StatusConflict, generated.ErrorResponse{Message: "Email already exists"})
 	} else if err != sql.ErrNoRows {
+		logResponse(ctx, http.StatusInternalServerError, err.Error())
 		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: err.Error()})
 	}
 
 	// Hash password
 	hashedPassword, err := repository.HashPassword(req.Password)
 	if err != nil {
+		logResponse(ctx, http.StatusInternalServerError, "Failed to hash password")
 		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: "Failed to hash password"})
 	}
 
@@ -293,6 +363,7 @@ func (s *Server) PostUsers(ctx echo.Context) error {
 		PasswordHash: hashedPassword,
 	})
 	if err != nil {
+		logResponse(ctx, http.StatusInternalServerError, err.Error())
 		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: err.Error()})
 	}
 
@@ -303,6 +374,7 @@ func (s *Server) PostUsers(ctx echo.Context) error {
 	if err != nil {
 		// Rollback user creation if person creation fails
 		_ = s.Repository.DeleteUser(ctx.Request().Context(), outUser.Id)
+		logResponse(ctx, http.StatusInternalServerError, err.Error())
 		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: err.Error()})
 	}
 
@@ -316,10 +388,12 @@ func (s *Server) PostUsers(ctx echo.Context) error {
 		// Rollback if email creation fails
 		_ = s.Repository.DeletePerson(ctx.Request().Context(), personOut.Id)
 		_ = s.Repository.DeleteUser(ctx.Request().Context(), outUser.Id)
+		logResponse(ctx, http.StatusInternalServerError, err.Error())
 		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: err.Error()})
 	}
 
 	parsedId, _ := uuid.Parse(outUser.Id)
+	logResponse(ctx, http.StatusOK, "user created")
 	return ctx.JSON(http.StatusOK, generated.CreateUserResponse{
 		Id: parsedId,
 	})
@@ -329,22 +403,27 @@ func (s *Server) GetUsersId(ctx echo.Context, id oapi_types.UUID) error {
 	// Get authenticated user ID from context
 	authUserID := GetUserIDFromContext(ctx)
 	if authUserID == "" {
+		logResponse(ctx, http.StatusUnauthorized, "unauthorized")
 		return ctx.JSON(http.StatusUnauthorized, generated.ErrorResponse{Message: "Unauthorized"})
 	}
 
 	// Verify user is accessing their own profile
 	if authUserID != id.String() {
+		logResponse(ctx, http.StatusUnauthorized, "unauthorized to access user")
 		return ctx.JSON(http.StatusUnauthorized, generated.ErrorResponse{Message: "Unauthorized to access this user"})
 	}
 
 	user, err := s.Repository.GetUserById(ctx.Request().Context(), id.String())
 	if err == sql.ErrNoRows {
+		logResponse(ctx, http.StatusNotFound, "user not found")
 		return ctx.JSON(http.StatusNotFound, generated.ErrorResponse{Message: "User not found"})
 	} else if err != nil {
+		logResponse(ctx, http.StatusInternalServerError, err.Error())
 		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: err.Error()})
 	}
 
 	parsedId, _ := uuid.Parse(user.Id)
+	logResponse(ctx, http.StatusOK, "user retrieved")
 	return ctx.JSON(http.StatusOK, generated.UserResponse{
 		Id:       parsedId,
 		Username: user.Username,
@@ -355,28 +434,34 @@ func (s *Server) PutUsersId(ctx echo.Context, id oapi_types.UUID) error {
 	// Get authenticated user ID from context
 	authUserID := GetUserIDFromContext(ctx)
 	if authUserID == "" {
+		logResponse(ctx, http.StatusUnauthorized, "unauthorized")
 		return ctx.JSON(http.StatusUnauthorized, generated.ErrorResponse{Message: "Unauthorized"})
 	}
 
 	// Verify user is accessing their own profile
 	if authUserID != id.String() {
+		logResponse(ctx, http.StatusUnauthorized, "unauthorized to access user")
 		return ctx.JSON(http.StatusUnauthorized, generated.ErrorResponse{Message: "Unauthorized to access this user"})
 	}
 
 	var req generated.UpdateUserRequest
 	if err := ctx.Bind(&req); err != nil {
+		logResponse(ctx, http.StatusBadRequest, "Invalid request body")
 		return ctx.JSON(http.StatusBadRequest, generated.ErrorResponse{Message: "Invalid request body"})
 	}
 
 	if req.Username == "" || string(req.Email) == "" || req.Password == "" {
+		logResponse(ctx, http.StatusBadRequest, "Username, email, and password are required")
 		return ctx.JSON(http.StatusBadRequest, generated.ErrorResponse{Message: "Username, email, and password are required"})
 	}
 
 	// Check if user exists
 	currentUser, err := s.Repository.GetUserById(ctx.Request().Context(), id.String())
 	if err == sql.ErrNoRows {
+		logResponse(ctx, http.StatusNotFound, "user not found")
 		return ctx.JSON(http.StatusNotFound, generated.ErrorResponse{Message: "User not found"})
 	} else if err != nil {
+		logResponse(ctx, http.StatusInternalServerError, err.Error())
 		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: err.Error()})
 	}
 
@@ -384,8 +469,10 @@ func (s *Server) PutUsersId(ctx echo.Context, id oapi_types.UUID) error {
 	if req.Username != currentUser.Username {
 		_, err := s.Repository.GetUserByUsername(ctx.Request().Context(), req.Username)
 		if err == nil {
+			logResponse(ctx, http.StatusConflict, "Username already exists")
 			return ctx.JSON(http.StatusConflict, generated.ErrorResponse{Message: "Username already exists"})
 		} else if err != sql.ErrNoRows {
+			logResponse(ctx, http.StatusInternalServerError, err.Error())
 			return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: err.Error()})
 		}
 	}
@@ -393,6 +480,7 @@ func (s *Server) PutUsersId(ctx echo.Context, id oapi_types.UUID) error {
 	// Hash password
 	hashedPassword, err := repository.HashPassword(req.Password)
 	if err != nil {
+		logResponse(ctx, http.StatusInternalServerError, "Failed to hash password")
 		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: "Failed to hash password"})
 	}
 
@@ -402,9 +490,11 @@ func (s *Server) PutUsersId(ctx echo.Context, id oapi_types.UUID) error {
 		PasswordHash: hashedPassword,
 	})
 	if err != nil {
+		logResponse(ctx, http.StatusInternalServerError, err.Error())
 		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: err.Error()})
 	}
 
+	logResponse(ctx, http.StatusOK, "user updated")
 	return ctx.JSON(http.StatusOK, generated.UpdateUserResponse{
 		Message: "User updated successfully",
 	})
@@ -414,27 +504,33 @@ func (s *Server) DeleteUsersId(ctx echo.Context, id oapi_types.UUID) error {
 	// Get authenticated user ID from context
 	authUserID := GetUserIDFromContext(ctx)
 	if authUserID == "" {
+		logResponse(ctx, http.StatusUnauthorized, "unauthorized")
 		return ctx.JSON(http.StatusUnauthorized, generated.ErrorResponse{Message: "Unauthorized"})
 	}
 
 	// Verify user is accessing their own profile
 	if authUserID != id.String() {
+		logResponse(ctx, http.StatusUnauthorized, "unauthorized to access user")
 		return ctx.JSON(http.StatusUnauthorized, generated.ErrorResponse{Message: "Unauthorized to access this user"})
 	}
 
 	// Check if user exists
 	_, err := s.Repository.GetUserById(ctx.Request().Context(), id.String())
 	if err == sql.ErrNoRows {
+		logResponse(ctx, http.StatusNotFound, "user not found")
 		return ctx.JSON(http.StatusNotFound, generated.ErrorResponse{Message: "User not found"})
 	} else if err != nil {
+		logResponse(ctx, http.StatusInternalServerError, err.Error())
 		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: err.Error()})
 	}
 
 	err = s.Repository.DeleteUser(ctx.Request().Context(), id.String())
 	if err != nil {
+		logResponse(ctx, http.StatusInternalServerError, err.Error())
 		return ctx.JSON(http.StatusInternalServerError, generated.ErrorResponse{Message: err.Error()})
 	}
 
+	logResponse(ctx, http.StatusOK, "user deleted")
 	return ctx.JSON(http.StatusOK, generated.DeleteUserResponse{
 		Message: "User deleted successfully",
 	})

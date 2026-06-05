@@ -82,3 +82,16 @@ CREATE TABLE person_social_media (
 	FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE,
 	UNIQUE(user_id, platform)
 );
+
+-- API logs table to record request/response events
+CREATE TABLE api_logs (
+	id UUID PRIMARY KEY,
+	occurred_at TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+	method VARCHAR(10) NOT NULL,
+	path VARCHAR(1000) NOT NULL,
+	status_code INT NOT NULL,
+	user_id UUID,
+	message TEXT,
+	latency_ms INT,
+	FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL
+);

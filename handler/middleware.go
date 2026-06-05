@@ -93,23 +93,10 @@ func (s *Server) BearerTokenMiddlewareWithSkipper() echo.MiddlewareFunc {
 				if p == "" {
 					return false
 				}
-				if method == "GET" && p == "/hello" {
-					return true
-				}
 				if method == "POST" && p == "/login" {
 					return true
 				}
 				if method == "POST" && p == "/users" {
-					return true
-				}
-				// Allow estate endpoints to be used in tests without auth
-				if method == "POST" && p == "/estate" {
-					return true
-				}
-				if method == "POST" && (p == "/estate/:id/tree" || (strings.HasPrefix(p, "/estate/") && strings.HasSuffix(p, "/tree"))) {
-					return true
-				}
-				if method == "GET" && (p == "/estate/:id/stats" || p == "/estate/:id/drone-plan" || (strings.HasPrefix(p, "/estate/") && (strings.HasSuffix(p, "/stats") || strings.HasSuffix(p, "/drone-plan")))) {
 					return true
 				}
 				return false
